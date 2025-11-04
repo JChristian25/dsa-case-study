@@ -17,6 +17,7 @@ def main():
     # 1. INGEST (JC's Task)
     print("Loading configuration...")
     
+    
     print("Ingesting and validating student data...")
 
     # 2. TRANSFORM (Jeoffrey's Task)
