@@ -40,11 +40,15 @@ def main():
     compare_sections(sections)
     
     # 4. REPORT (Daniel, Mary & Kirsten's Tasks)
-    # print("Generating reports...")
-    
-    # print("\n--- Academic Insights ---")   
-    
-    # print(f"\nSuccessfully exported at-risk report to {OUTPUT_REPORT_PATH}")
+    print("Generating reports...")
+    for section_name, section_data in sections.items():
+        if section_data:
+            export_to_csv(
+                section_data,
+                f"{config['file_paths']['output_dir']}section_{section_name}_report.csv",
+            )
+        else:
+            print(f"No data to export for section {section_name}")
 
 
 if __name__ == "__main__":
