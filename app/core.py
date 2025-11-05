@@ -39,3 +39,15 @@ def read_csv_data(filepath: str) -> List[Dict[str, Any]]:
             # Add processed row to records list
             records.append(row)
     return records
+
+# "Helper" function to para gumawa ng dictionary na may section as key and list of students as value
+def group_students_by_section(students: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """Groups a list of students by their section."""
+    sections: Dict[str, List[Dict[str, Any]]] = {}
+    for student in students:
+        section = student.get('section')
+        if section:
+            if section not in sections:
+                sections[section] = []
+            sections[section].append(student)
+    return sections
