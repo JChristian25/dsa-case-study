@@ -8,7 +8,6 @@ from app.cli import run_menu
 
 # --- Constants ---
 CONFIG_PATH = "config.json"
-DATA_PATH = "data/input.csv"
 OUTPUT_REPORT_PATH = "output/at_risk_students.csv"
 
 def main():
@@ -16,12 +15,14 @@ def main():
     
     # 1. INGEST (JC's Task)
     print("Loading configuration...")
-    
+    config = load_config(CONFIG_PATH)
     
     print("Ingesting and validating student data...")
+    student_records = read_csv_data(config['file_paths']['input_csv'])
 
     # 2. TRANSFORM (Jeoffrey's Task)
     print("Calculating weighted grades...")
+    grades = compute_weighted_grades(student_records, config['grade_weights'])
 
     # 3. ANALYZE (Jeoffrey, Miles, JC's Tasks)
     print("Analyzing data...")

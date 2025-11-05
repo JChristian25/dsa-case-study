@@ -1,0 +1,20 @@
+{
+  "file_paths": {
+    "input_csv": "data/input.csv",
+    "output_dir": "output/"
+  },
+  "grade_weights": {
+    "quizzes_total": 0.25,
+    "midterm": 0.25,
+    "final": 0.50
+  },
+  "thresholds": {
+    "at_risk_cutoff": 70.0,
+    "grade_letters": {
+      "A": 90,
+      "B": 80,
+      "C": 70,
+      "D": 60
+    }
+  }
+}
