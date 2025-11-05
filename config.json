@@ -4,9 +4,10 @@
     "output_dir": "output/"
   },
   "grade_weights": {
-    "quizzes_total": 0.25,
-    "midterm": 0.25,
-    "final": 0.50
+    "quizzes_total": 0.20,
+    "midterm": 0.35,
+    "final": 0.35,
+    "attendance": 0.10
   },
   "thresholds": {
     "at_risk_cutoff": 70.0,
