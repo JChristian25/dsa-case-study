@@ -8,4 +8,7 @@ def generate_improvement_insights(students: List[Dict[str, Any]]) -> List[str]:
     pass
 
 def compare_sections(students: List[Dict[str, Any]]) -> Dict[str, Any]:
-    pass
+    scores = {
+        "quiz1": [student['quiz1'] for student in students if student['quiz1'] is not None],
+    }
+    return scores
