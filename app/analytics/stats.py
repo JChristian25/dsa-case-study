@@ -25,7 +25,7 @@ def compute_weighted_grades(students: List[Dict[str, Any]], weight: Dict[str, fl
         # Transforming None as 0 for final, midterm, and attendance_percent
         for n in keys[1]:
             if stud[n] is None:
-                stud[n] = 0
+                selected_stud[n] = 0
         # Calculating the weighed grade
         weighted_grade = (
             q_avr * weight['quizzes_total'] +
@@ -40,7 +40,26 @@ def compute_weighted_grades(students: List[Dict[str, Any]], weight: Dict[str, fl
     return stud_w_weighted_grade
 
 def calculate_distribution(students: List[Dict[str, Any]], thresholds: Dict[str, int]) -> Dict[str, int]:
-    pass
+    # Creating placeholder for students with grade evaluation
+    students_with_gradeletter: Dict[str, int] = {}
+    # Initializing the Dictionary for grade evaluation counter
+    key = list(thresholds.keys())
+    key.append('-D') # For students who doesn't meet the thresholds (below D)
+    grade_eval_counter = {key:0 for key in key}
+    # Processing students...
+    for stud in students:
+        # Checking what's the grade evaluation on a student then count
+        if thresholds['A'] <= round(stud['weighted_grade']):
+            grade_eval_counter['A'] += 1
+        elif thresholds['B'] <= round(stud['weighted_grade']) < thresholds['A']:
+            grade_eval_counter['B'] += 1
+        elif thresholds['C'] <= round(stud['weighted_grade']) < thresholds['B']:
+            grade_eval_counter['C'] += 1
+        elif thresholds['D'] <= round(stud['weighted_grade']) < thresholds['C']:
+            grade_eval_counter['D'] += 1
+        elif thresholds['D'] > round(stud['weighted_grade']):
+            grade_eval_counter['-D'] += 1
+    return grade_eval_counter
 
 def calculate_percentile(students: List[Dict[str, Any]], percentile: int) -> float | None:
     pass
