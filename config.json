@@ -1,6 +1,6 @@
 {
   "file_paths": {
-    "input_csv": "data/input.csv",
+    "input_csv": "data/input_bsit.csv",
     "output_dir": "output/"
   },
   "grade_weights": {

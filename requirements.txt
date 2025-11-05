@@ -16,3 +16,4 @@ pytest==8.4.2
 python-dateutil==2.9.0.post0
 rich==14.2.0
 six==1.17.0
+rich
