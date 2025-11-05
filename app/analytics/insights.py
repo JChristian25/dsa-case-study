@@ -50,3 +50,38 @@ def compare_sections(sections_data: Dict[str, List[Dict[str, Any]]]) -> None:
         console.print("[bold]Key Insights:[/bold]")
         for insight in insights:
             console.print(f"- {insight}")
+
+def find_hardest_topic(students: List[Dict[str, Any]]) -> None:
+    console = Console()
+    quiz_scores: Dict[str, List[int]] = {}
+
+    # Project scores for each quiz into their own lists
+    for student in students:
+        for key, value in student.items():
+            if key.lower().startswith('quiz') and isinstance(value, (int, float)):
+                if key not in quiz_scores:
+                    quiz_scores[key] = []
+                quiz_scores[key].append(value)
+
+    if not quiz_scores:
+        console.print("No quiz data available to analyze.")
+        return
+
+    # Calculate the class average for each quiz
+    quiz_averages = {quiz: sum(scores) / len(scores) for quiz, scores in quiz_scores.items()}
+
+    # Find the quiz with the lowest average
+    if not quiz_averages:
+        console.print("Could not calculate quiz averages.")
+        return
+        
+    hardest_quiz = min(quiz_averages, key=quiz_averages.get)
+    lowest_avg = quiz_averages[hardest_quiz]
+
+    # Report the insight and suggestion
+    insight = f"The lowest-scoring activity was {hardest_quiz.replace('_', ' ').title()} ({lowest_avg:.1f}%)."
+    suggestion = f"SUGGESTION: The topic for {hardest_quiz.replace('_', ' ').title()} was a class-wide weakness. Review this material."
+
+    console.print(f"\n[bold]Hardest Topic Analysis:[/bold]")
+    console.print(f"- {insight}")
+    console.print(f"- {suggestion}")

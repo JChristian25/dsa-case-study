@@ -1,7 +1,7 @@
 # --- Imports from your custom modules ---
 from app.core import load_config, read_csv_data, group_students_by_section
 from app.analytics.stats import compute_weighted_grades, calculate_distribution
-from app.analytics.insights import compare_sections
+from app.analytics.insights import compare_sections, find_hardest_topic
 from app.reporting.exporter import export_to_csv
 from app.reporting.plotting import plot_grade_histogram
 from app.cli import run_menu
@@ -32,6 +32,11 @@ def main():
     # 3. ANALYZE (Jeoffrey, Miles, JC's Tasks)
     print("Analyzing data...")
     sections = group_students_by_section(all_students)
+    
+    for section_name, students in sections.items():
+        console.print(f"\n--- Analysis for Section: {section_name} ---", style="bold blue")
+        find_hardest_topic(students)
+        
     compare_sections(sections)
     
     # 4. REPORT (Daniel, Mary & Kirsten's Tasks)
