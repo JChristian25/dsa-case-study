@@ -91,3 +91,39 @@ def get_average_grade(students: List[Dict[str, Any]]) -> float:
     number_of_students = len(students)
     average_grade = total_grade / number_of_students
     return average_grade
+
+
+def apply_grade_curve( students: List[Dict[str, Any]], method: str = "flat", value: float = 0.0) -> List[Dict[str, Any]]:
+    # - offset (how many points to add) ---
+    offset = 0.0
+    if method == "flat":
+        offset = value
+        print(f"Applying a flat curve of +{offset} points.")
+    elif method == "normalize":
+        # Find the highest grade in the class
+        grades = [s.get('weighted_grade', 0.0) for s in students if s.get('weighted_grade') is not None]
+        if not grades:
+            return students # No grades to curve
+        max_grade = max(grades)
+        # Calculate the offset needed to make the max grade 100
+        # If the 'value' is given as 100, we use that.
+        # Otherwise, we default to 100.
+        target_max = value if value > 0 else 100.0
+        if max_grade < target_max:
+            offset = target_max - max_grade
+            print(f"Applying a normalize-to-max curve. Highest grade {max_grade} becomes {target_max}. (Offset: +{offset:.2f})")
+        else:
+            print("No curve applied: Max grade is already at or above the target.")   
+    else:
+        print(f"Unknown curve method '{method}'. No curve applied.")
+        return students
+    # Apply the curve to every student 
+    for student in students:
+        original_grade = student.get('weighted_grade')
+        if original_grade is not None:
+            # Add the offset, but cap the final grade at 100
+            curved_grade = min(100.0, original_grade + offset)
+            student['curved_grade'] = round(curved_grade, 2)
+        else:
+            student['curved_grade'] = None # Cant curve a missing grade
+    return students

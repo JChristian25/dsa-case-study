@@ -1,6 +1,6 @@
 # --- Imports from your custom modules ---
 from app.core import load_config, read_csv_data, group_students_by_section, insert_student, delete_student, sort_students
-from app.analytics.stats import compute_weighted_grades, calculate_distribution, get_top_n_students, get_bottom_n_students, get_average_grade
+from app.analytics.stats import compute_weighted_grades, calculate_distribution, get_top_n_students, get_bottom_n_students, get_average_grade, apply_grade_curve
 from app.analytics.insights import compare_sections, find_hardest_topic
 from app.reporting.exporter import export_to_csv
 from app.reporting.plotting import plot_grade_histogram
@@ -140,8 +140,7 @@ def main():
     
     # find outliers overall
     
-    # apply grade curve
-    
+        
     # analyze data: hardest topic per section, compare sections
     for section_name, students in sections.items():
         console.print(f"\n--- Analysis for Section: {section_name} ---", style="bold blue")
@@ -149,6 +148,24 @@ def main():
         
     compare_sections(sections)
     
+    # apply grade curve
+    all_students = apply_grade_curve(all_students, method="flat", value=5.0)
+    print("5-point flat curve applied successfully.")
+    
+    for i in range(3): 
+        print(  f"Student: {all_students[i]['last_name']},",
+                f"Original: {all_students[i]['weighted_grade']},",
+                f"Curved: {all_students[i]['curved_grade']}")
+    
+    # Apply a normalize-to-100 curve
+    all_students = apply_grade_curve(all_students, method="normalize", value=100.0)
+    print("Normalize-to-100 curve applied successfully.")
+    
+    for i in range(3): 
+        print(  f"Student: {all_students[i]['last_name']},",
+                f"Original: {all_students[i]['weighted_grade']},",
+                f"Curved: {all_students[i]['curved_grade']}")     
+
     ## == REPORT == ##
     # reporting: export to csv per section, plot histograms
     
