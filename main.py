@@ -7,6 +7,7 @@ from app.reporting.plotting import plot_grade_histogram
 from app.cli import run_menu
 from rich.console import Console
 from rich.table import Table
+import sys
 
 # --- Constants ---
 CONFIG_PATH = "config.json"
@@ -83,4 +84,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--cli":
+        run_menu()
+    else:
+        main()
