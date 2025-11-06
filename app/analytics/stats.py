@@ -66,3 +66,28 @@ def calculate_percentile(students: List[Dict[str, Any]], percentile: int) -> flo
 
 def apply_grade_curve(students: List[Dict[str, Any]], method: str = "flat", value: float = 0) -> List[Dict[str, Any]]:
     pass
+
+def _get_grade(student: Dict[str, Any]) -> float:
+    """Helper function to get a student's grade, defaulting to 0."""
+    return student.get("weighted_grade", 0)
+
+def get_top_n_students(students: List[Dict[str, Any]], n: int) -> List[Dict[str, Any]]:
+    sorted_students = sorted(students, key=_get_grade, reverse=True)
+    top_students = sorted_students[:n]
+    return top_students
+
+def get_bottom_n_students(students: List[Dict[str, Any]], n: int) -> List[Dict[str, Any]]:
+    sorted_students = sorted(students, key=_get_grade)
+    bottom_students = sorted_students[:n]
+    return bottom_students
+
+def get_average_grade(students: List[Dict[str, Any]]) -> float:
+    if not students:
+        return 0.0
+    total_grade = 0.0
+    for student in students:
+        grade = student.get("weighted_grade", 0)
+        total_grade += grade
+    number_of_students = len(students)
+    average_grade = total_grade / number_of_students
+    return average_grade
