@@ -29,9 +29,9 @@ def compute_weighted_grades(students: List[Dict[str, Any]], weight: Dict[str, fl
         # Calculating the weighed grade
         weighted_grade = (
             q_avr * weight['quizzes_total'] +
-            stud['midterm'] * weight['midterm'] +
-            stud['final'] * weight['final'] +
-            stud['attendance_percent'] * weight['attendance']
+            selected_stud['midterm'] * weight['midterm'] +
+            selected_stud['final'] * weight['final'] +
+            selected_stud['attendance_percent'] * weight['attendance']
         )
         # Adding the 'weighted_grade' to selected stud
         selected_stud['weighted_grade'] = round(weighted_grade, 2)
