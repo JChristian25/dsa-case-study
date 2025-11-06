@@ -51,3 +51,39 @@ def group_students_by_section(students: List[Dict[str, Any]]) -> Dict[str, List[
                 sections[section] = []
             sections[section].append(student)
     return sections
+
+
+def insert_student(
+    sections: Dict[str, List[Dict[str, Any]]], student: Dict[str, Any]
+) -> None:
+    section = student.get("section")
+    if section:
+        if section not in sections:
+            sections[section] = []
+        sections[section].append(student)
+        
+def delete_student(
+    sections: Dict[str, List[Dict[str, Any]]], student_id: str
+) -> bool:
+    for section_list in sections.values():
+        student_to_remove_index = -1
+        for i, student in enumerate(section_list):
+            if student.get("student_id") == student_id:
+                student_to_remove_index = i
+                break
+        if student_to_remove_index != -1:
+            del section_list[student_to_remove_index]
+            return True
+    return False
+
+def sort_students(
+    students: List[Dict[str, Any]], sort_by: str, reverse: bool = False
+) -> List[Dict[str, Any]]:
+    def get_sort_key(student: Dict[str, Any]):
+        if sort_by in ['last_name', 'first_name', 'section', 'student_id']:
+            return student.get(sort_by, "")
+        else:
+            return student.get(sort_by, 0) 
+    sorted_list = sorted(students, key=get_sort_key, reverse=reverse)
+    
+    return sorted_list
