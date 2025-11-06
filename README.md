@@ -9,7 +9,8 @@ Contents
 Instructions:
 1. Create a virtual environment (recommended):
    python -m venv .venv
-   source .venv/bin/activate
+   <!-- source .venv/bin/activate -->
+   .venv\Scripts\Activate.ps1
 2. Install dependencies:
    pip install -r requirements.txt
 3. Run the main script or the CLI:
