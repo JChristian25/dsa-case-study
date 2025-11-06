@@ -54,7 +54,7 @@ def submenu(title, options):
             table.add_row(key, desc)
 
         console.print(table)
-        console.print("[dim]Enter your choice (e.g., 1.a) or 0 to go back.[/dim]")
+        console.print("[dim]Enter your choice (e.g., a) or 0 to go back.[/dim]")
 
         choice = input("Your choice: ").strip().lower()
         if choice == "0":
@@ -70,55 +70,55 @@ def submenu(title, options):
 # =====================================
 def course_dashboard():
     options = {
-        "1.a": "View Overall Summary",
-        "1.b": "View Grade Histogram",
-        "1.c": "View Grade Box Plot",
-        "1.d": "View Improvement Insights",
-        "1.e": "Back to Main Menu"
+        "a": "View Overall Summary",
+        "b": "View Grade Histogram",
+        "c": "View Grade Box Plot",
+        "d": "View Improvement Insights",
+        "e": "Back to Main Menu"
     }
     while True:
         choice = submenu("OPTION 1: COURSE DASHBOARD", options)
-        if choice is None or choice == "1.e":
+        if choice is None or choice == "e":
             break
         console.print(f"[bold green]Option selected: {options[choice]}[/bold green]")
         sleep(1)
 
 def section_analytics():
     options = {
-        "2.a": "Compare All Sections",
-        "2.b": "View Report for Specific Section",
-        "2.c": "Back to Main Menu"
+        "a": "Compare All Sections",
+        "b": "View Report for Specific Section",
+        "c": "Back to Main Menu"
     }
     while True:
         choice = submenu("OPTION 2: SECTION ANALYTICS", options)
-        if choice is None or choice == "2.c":
+        if choice is None or choice == "c":
             break
         console.print(f"[bold green]Option selected: {options[choice]}[/bold green]")
         sleep(1)
 
 def student_reports():
     options = {
-        "3.a": "View 'At-Risk' Student List",
-        "3.b": "Export 'At-Risk' List to CSV",
-        "3.c": "Look Up Individual Student",
-        "3.d": "Back to Main Menu"
+        "a": "View 'At-Risk' Student List",
+        "b": "Export 'At-Risk' List to CSV",
+        "c": "Look Up Individual Student",
+        "d": "Back to Main Menu"
     }
     while True:
         choice = submenu("OPTION 3: STUDENT REPORTS", options)
-        if choice is None or choice == "3.d":
+        if choice is None or choice == "d":
             break
         console.print(f"[bold green]Option selected: {options[choice]}[/bold green]")
         sleep(1)
 
 def tools_utilities():
     options = {
-        "4.a": "Apply Grade Curve",
-        "4.b": "Run Analytics (NumPy Version)",
-        "4.c": "Back to Main Menu"
+        "a": "Apply Grade Curve",
+        "b": "Run Analytics (NumPy Version)",
+        "c": "Back to Main Menu"
     }
     while True:
         choice = submenu("OPTION 4: TOOLS & UTILITIES", options)
-        if choice is None or choice == "4.c":
+        if choice is None or choice == "c":
             break
         console.print(f"[bold green]Option selected: {options[choice]}[/bold green]")
         sleep(1)
