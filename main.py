@@ -1,9 +1,22 @@
 # --- Imports from your custom modules ---
 from app.core import load_config, read_csv_data, group_students_by_section, insert_student, delete_student, sort_students
 from app.analytics.stats import compute_weighted_grades, calculate_distribution, get_top_n_students, get_bottom_n_students, get_average_grade, apply_grade_curve
-from app.analytics.insights import compare_sections, find_hardest_topic
+from app.analytics.insights import (
+    compare_sections,  # legacy print version
+    find_hardest_topic,  # legacy print version
+    get_quiz_averages,
+    get_sections_quiz_averages,
+)
 from app.reporting.exporter import export_to_csv
-from app.reporting.plotting import plot_grade_histogram
+from app.reporting.tables import (
+    build_student_table,
+    build_distribution_table,
+    build_section_summary_table,
+    build_rank_table,
+    build_curve_table,
+    build_hardest_topic_table,
+    build_quiz_comparison_table,
+)
 from app.cli import run_menu
 from rich.console import Console
 from rich.table import Table
@@ -24,10 +37,8 @@ def main():
     ## == TRANSFORM == ##
     #transform data, get weighted grade
     all_students = compute_weighted_grades(all_students, config['grade_weights'])
-    
-    print(f"{'Student Name':19} {'Weighted Grade'}")
-    for stud in all_students:
-        print(f"{stud['first_name'] + ' ' + stud['last_name']:23} {stud['weighted_grade']:2.2f}")
+    # Overall roster table
+    console.print(build_student_table(all_students, title="Overall Roster", at_risk_cutoff=config['thresholds']['at_risk_cutoff']))
     
     #create a dictionary of sections with students in each section
     # The line `sections = group_students_by_section(all_students)` is creating a dictionary where the keys are the section names and the values are lists of students belonging to each section. This function is grouping the students based on their section, which allows for easier analysis and manipulation of student data within each section.
@@ -58,54 +69,43 @@ def main():
     else:
         print(f"Could not find student with ID {student_to_delete_id}.")
     
-    #calculate weighted grades per section
+    #calculate weighted grades per section (tables)
     for section_name, students in sections.items():
         section_grades = compute_weighted_grades(students, config['grade_weights'])
-        print(f"\n--- Section: {section_name} ---")
-        print(f"{'Student Name':19} {'Weighted Grade'}")
-        for stud in section_grades:
-            print(f"{stud['first_name'] + ' ' + stud['last_name']:23} {stud['weighted_grade']:2.2f}")
+    console.print(build_student_table(section_grades, title=f"Section: {section_name}", at_risk_cutoff=config['thresholds']['at_risk_cutoff']))
     
     # sort students in a section by weighted grade
     print("\n--- Sorting students by weighted grade (descending) ---")
     for section_name, students in sections.items():
         sorted_by_grade = sort_students(students, sort_by='weighted_grade', reverse=True)
-        print(f"\n--- Section: {section_name} (Sorted by Grade) ---")
-        for stud in sorted_by_grade:
-            print(f"{stud['first_name'] + ' ' + stud['last_name']:23} {stud['weighted_grade']:2.2f}")
+    console.print(build_student_table(sorted_by_grade, title=f"Section: {section_name} (Sorted by Grade desc)", at_risk_cutoff=config['thresholds']['at_risk_cutoff']))
 
     # sort students in a section by last name
     print("\n--- Sorting students by last name (ascending) ---")
     for section_name, students in sections.items():
         sorted_by_name = sort_students(students, sort_by='last_name')
-        print(f"\n--- Section: {section_name} (Sorted by Last Name) ---")
-        for stud in sorted_by_name:
-            print(f"{stud['last_name']}, {stud['first_name']:15} {stud['weighted_grade']:2.2f}")
+    console.print(build_student_table(sorted_by_name, title=f"Section: {section_name} (Sorted by Last Name asc)", at_risk_cutoff=config['thresholds']['at_risk_cutoff']))
             
     # sort students in a section by first name
-    print("\n--- Sorting students by last name (ascending) ---")
+    print("\n--- Sorting students by first name (ascending) ---")
     for section_name, students in sections.items():
         sorted_by_name = sort_students(students, sort_by='first_name')
-        print(f"\n--- Section: {section_name} (Sorted by Last Name) ---")
-        for stud in sorted_by_name:
-            print(f"{stud['last_name']}, {stud['first_name']:15} {stud['weighted_grade']:2.2f}")
+    console.print(build_student_table(sorted_by_name, title=f"Section: {section_name} (Sorted by First Name asc)", at_risk_cutoff=config['thresholds']['at_risk_cutoff']))
             
     # project: get top N students per section
     N = 3
     print(f"\n--- Top {N} Students per Section ---")
     for section_name, students in sections.items():
         top_students = get_top_n_students(students, N)
-        print(f"\n--- Section: {section_name} ---")
-        for i, stud in enumerate(top_students):
-            print(f"{i+1}. {stud['first_name'] + ' ' + stud['last_name']:21} {stud['weighted_grade']:2.2f}")
+        rows = [dict(rank=i+1, **s) for i, s in enumerate(top_students)]
+        console.print(build_rank_table(rows, title=f"Top {N} - {section_name}"))
             
     # project: get bottom N students per section
     print(f"\n--- Bottom {N} Students per Section ---")
     for section_name, students in sections.items():
         bottom_students = get_bottom_n_students(students, N)
-        print(f"\n--- Section: {section_name} ---")
-        for i, stud in enumerate(bottom_students):
-            print(f"{i+1}. {stud['first_name'] + ' ' + stud['last_name']:21} {stud['weighted_grade']:2.2f}")
+        rows = [dict(rank=i+1, **s) for i, s in enumerate(bottom_students)]
+        console.print(build_rank_table(rows, title=f"Bottom {N} - {section_name}"))
             
     # project: rank students overall
     
@@ -113,26 +113,18 @@ def main():
     
     # project: get average grade per section
     print("\n--- Average Grade per Section ---")
-    for section_name, students in sections.items():
-        average_grade = get_average_grade(students)
-        print(f"Section {section_name}: {average_grade:.2f}")
+    averages = {section_name: get_average_grade(students) for section_name, students in sections.items()}
+    console.print(build_section_summary_table(sections, averages, title="Average Grade per Section"))
     
     ## == ANALYZE == ##
     # calculate distribution of grades overall and per section
     distribution = calculate_distribution(all_students, config['thresholds']['grade_letters'])
-    print(f"Total students: {len(all_students)}")
-    print(f"{"=" * 5} GRADE LETTER COUNT {"=" * 5}")
-    for key, val in distribution.items():
-        print(f"{key + ':':^4} {val:^4} {'*' * val}")
+    console.print(build_distribution_table(distribution, total=len(all_students), title="Overall Grade Distribution"))
         
     for section_name, students in sections.items():
         section_grades = compute_weighted_grades(students, config['grade_weights'])
         section_distribution = calculate_distribution(section_grades, config['thresholds']['grade_letters'])
-        print(f"\n--- Section: {section_name} ---")
-        print(f"Total students: {len(students)}")
-        print(f"{"=" * 5} GRADE LETTER COUNT {"=" * 5}")
-        for key, val in section_distribution.items():
-            print(f"{key + ':':^4} {val:^4} {'*' * val}")
+        console.print(build_distribution_table(section_distribution, total=len(students), title=f"Grade Distribution - {section_name}"))
     
     # calculate percentiles overall and per section
     
@@ -141,30 +133,29 @@ def main():
     # find outliers overall
     
         
-    # analyze data: hardest topic per section, compare sections
+    # analyze data: hardest topic per section (table) and quiz comparison across sections
     for section_name, students in sections.items():
-        console.print(f"\n--- Analysis for Section: {section_name} ---", style="bold blue")
-        find_hardest_topic(students)
-        
-    compare_sections(sections)
+        quiz_data = get_quiz_averages(students)
+        quiz_avgs = quiz_data[0]
+        quiz_counts = quiz_data[1]
+        hardest_quiz = quiz_data[2]
+        console.print(build_hardest_topic_table(quiz_avgs, quiz_counts, hardest_quiz, title=f"Hardest Topic - {section_name}"))
+
+    sections_quiz_data = get_sections_quiz_averages(sections)
+    avg_by_section = sections_quiz_data[0]
+    quiz_keys = sections_quiz_data[1]
+    lowest_per_quiz = sections_quiz_data[2]
+    console.print(build_quiz_comparison_table(avg_by_section, quiz_keys, lowest_per_quiz, title="Quiz Averages Comparison"))
     
     # apply grade curve
     all_students = apply_grade_curve(all_students, method="flat", value=5.0)
     print("5-point flat curve applied successfully.")
-    
-    for i in range(3): 
-        print(  f"Student: {all_students[i]['last_name']},",
-                f"Original: {all_students[i]['weighted_grade']},",
-                f"Curved: {all_students[i]['curved_grade']}")
+    console.print(build_curve_table(all_students[:5], title="Curve Preview (flat +5)"))
     
     # Apply a normalize-to-100 curve
     all_students = apply_grade_curve(all_students, method="normalize", value=100.0)
     print("Normalize-to-100 curve applied successfully.")
-    
-    for i in range(3): 
-        print(  f"Student: {all_students[i]['last_name']},",
-                f"Original: {all_students[i]['weighted_grade']},",
-                f"Curved: {all_students[i]['curved_grade']}")     
+    console.print(build_curve_table(all_students[:5], title="Curve Preview (normalize to 100)"))
 
     ## == REPORT == ##
     # reporting: export to csv per section, plot histograms
