@@ -5,6 +5,24 @@ from time import sleep
 import os
 import sys
 
+# Data / analytics
+from app.core import load_config, read_csv_data, group_students_by_section, sort_students
+from app.analytics.stats import (
+    compute_weighted_grades,
+    calculate_distribution,
+    get_top_n_students,
+    get_bottom_n_students,
+    get_average_grade,
+    apply_grade_curve,
+)
+from app.reporting.tables import (
+    build_student_table,
+    build_distribution_table,
+    build_section_summary_table,
+    build_rank_table,
+    build_curve_table,
+)
+
 console = Console()
 
 # =====================================
