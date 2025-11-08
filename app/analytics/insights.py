@@ -85,3 +85,45 @@ def find_hardest_topic(students: List[Dict[str, Any]]) -> None:
     console.print(f"\n[bold]Hardest Topic Analysis:[/bold]")
     console.print(f"- {insight}")
     console.print(f"- {suggestion}")
+
+
+# New: data-returning helpers for TUI tables
+def get_quiz_averages(students: List[Dict[str, Any]]) -> List[Any]:
+    quiz_scores: Dict[str, List[float]] = {}
+    for student in students:
+        for key, value in student.items():
+            if key.lower().startswith('quiz') and isinstance(value, (int, float)):
+                quiz_scores.setdefault(key, []).append(value)
+    quiz_averages: Dict[str, float] = {k: (sum(v)/len(v) if v else 0.0) for k, v in quiz_scores.items()}
+    quiz_counts: Dict[str, int] = {k: len(v) for k, v in quiz_scores.items()}
+    if quiz_averages:
+        hardest = min(quiz_averages, key=quiz_averages.get)
+        lowest = quiz_averages[hardest]
+    else:
+        hardest, lowest = "", 0.0
+    return [quiz_averages, quiz_counts, hardest, lowest]
+
+
+def get_sections_quiz_averages(sections_data: Dict[str, List[Dict[str, Any]]]) -> List[Any]:
+    # Discover quiz keys
+    quiz_keys: List[str] = []
+    for students in sections_data.values():
+        if students:
+            for key in students[0].keys():
+                if key.startswith('quiz') and key not in quiz_keys:
+                    quiz_keys.append(key)
+    quiz_keys = sorted(quiz_keys)
+    # Averages by section
+    avg_by_section: Dict[str, Dict[str, float]] = {}
+    for section, students in sections_data.items():
+        per_quiz: Dict[str, float] = {}
+        for quiz in quiz_keys:
+            scores = [s.get(quiz) for s in students if s.get(quiz) is not None]
+            per_quiz[quiz] = (sum(scores)/len(scores)) if scores else 0.0
+        avg_by_section[section] = per_quiz
+    # Lowest per quiz
+    lowest: Dict[str, Dict[str, Any]] = {}
+    for quiz in quiz_keys:
+        section_min = min(avg_by_section.keys(), key=lambda s: avg_by_section[s][quiz]) if avg_by_section else ""
+        lowest[quiz] = {"section": section_min, "avg": (avg_by_section[section_min][quiz] if section_min else 0.0)}
+    return [avg_by_section, quiz_keys, lowest]

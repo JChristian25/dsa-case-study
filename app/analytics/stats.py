@@ -7,7 +7,7 @@ def compute_weighted_grades(students: List[Dict[str, Any]], weight: Dict[str, fl
     keys = (
         ('quiz1', 'quiz2', 'quiz3', 'quiz4', 'quiz5'),
         ('midterm', 'final', 'attendance_percent')
-    )
+    ) 
     # Creating placeholder for students along with weighted grade
     stud_w_weighted_grade = []
     # Processing the students...
@@ -28,7 +28,7 @@ def compute_weighted_grades(students: List[Dict[str, Any]], weight: Dict[str, fl
                 selected_stud[n] = 0
         # Calculating the weighed grade
         weighted_grade = (
-            q_avr * weight['quizzes_total'] +
+            q_avr * weight['quizzes_total'] + 
             selected_stud['midterm'] * weight['midterm'] +
             selected_stud['final'] * weight['final'] +
             selected_stud['attendance_percent'] * weight['attendance']
@@ -66,3 +66,64 @@ def calculate_percentile(students: List[Dict[str, Any]], percentile: int) -> flo
 
 def apply_grade_curve(students: List[Dict[str, Any]], method: str = "flat", value: float = 0) -> List[Dict[str, Any]]:
     pass
+
+def _get_grade(student: Dict[str, Any]) -> float:
+    """Helper function to get a student's grade, defaulting to 0."""
+    return student.get("weighted_grade", 0)
+
+def get_top_n_students(students: List[Dict[str, Any]], n: int) -> List[Dict[str, Any]]:
+    sorted_students = sorted(students, key=_get_grade, reverse=True)
+    top_students = sorted_students[:n]
+    return top_students
+
+def get_bottom_n_students(students: List[Dict[str, Any]], n: int) -> List[Dict[str, Any]]:
+    sorted_students = sorted(students, key=_get_grade)
+    bottom_students = sorted_students[:n]
+    return bottom_students
+
+def get_average_grade(students: List[Dict[str, Any]]) -> float:
+    if not students:
+        return 0.0
+    total_grade = 0.0
+    for student in students:
+        grade = student.get("weighted_grade", 0)
+        total_grade += grade
+    number_of_students = len(students)
+    average_grade = total_grade / number_of_students
+    return average_grade
+
+
+def apply_grade_curve( students: List[Dict[str, Any]], method: str = "flat", value: float = 0.0) -> List[Dict[str, Any]]:
+    # - offset (how many points to add) ---
+    offset = 0.0
+    if method == "flat":
+        offset = value
+        print(f"Applying a flat curve of +{offset} points.")
+    elif method == "normalize":
+        # Find the highest grade in the class
+        grades = [s.get('weighted_grade', 0.0) for s in students if s.get('weighted_grade') is not None]
+        if not grades:
+            return students # No grades to curve
+        max_grade = max(grades)
+        # Calculate the offset needed to make the max grade 100
+        # If the 'value' is given as 100, we use that.
+        # Otherwise, we default to 100.
+        target_max = value if value > 0 else 100.0
+        if max_grade < target_max:
+            offset = target_max - max_grade
+            print(f"Applying a normalize-to-max curve. Highest grade {max_grade} becomes {target_max}. (Offset: +{offset:.2f})")
+        else:
+            print("No curve applied: Max grade is already at or above the target.")   
+    else:
+        print(f"Unknown curve method '{method}'. No curve applied.")
+        return students
+    # Apply the curve to every student 
+    for student in students:
+        original_grade = student.get('weighted_grade')
+        if original_grade is not None:
+            # Add the offset, but cap the final grade at 100
+            curved_grade = min(100.0, original_grade + offset)
+            student['curved_grade'] = round(curved_grade, 2)
+        else:
+            student['curved_grade'] = None # Cant curve a missing grade
+    return students
