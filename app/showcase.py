@@ -190,7 +190,11 @@ def run_showcase(config_path: str = "config.json") -> None:
 
     # == RANKINGS OVERALL == (to add)
     console.rule("RANKINGS OVERALL (to add)")
-    console.print("[dim]Overall ranking not yet implemented.[/dim]")
+    # console.print("[dim]Overall ranking not yet implemented.[/dim]")
+    N = 10
+    top_students_overall = get_top_n_students(students, N)
+    rows = [dict(rank=i + 1, **s) for i, s in enumerate(top_students_overall)]
+    console.print(build_rank_table(rows, title=f"Top {N} — {section_name}"))
 
     # == PERCENTILES == (to add)
     console.rule("PERCENTILES (to add)")

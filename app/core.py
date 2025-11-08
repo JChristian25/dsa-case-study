@@ -10,10 +10,10 @@ def load_config(filepath: str) -> Dict[str, Any]:
 
 def read_csv_data(filepath: str) -> List[Dict[str, Any]]:
     # Initialize empty list to store processed records
-    records = []    
+    records = []
     # Open CSV file and create DictReader for column-based access
     with open(filepath, newline='') as csvfile: 
-        reader = csv.DictReader(csvfile)
+        reader = csv.DictReader(csvfile)                                                
         for row in reader:
             # Strip whitespace from string values while preserving other types
             row = {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
@@ -61,7 +61,8 @@ def insert_student(
         if section not in sections:
             sections[section] = []
         sections[section].append(student)
-        
+
+
 def delete_student(
     sections: Dict[str, List[Dict[str, Any]]], student_id: str
 ) -> bool:
