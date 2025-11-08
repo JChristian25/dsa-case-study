@@ -90,7 +90,7 @@ def _styled_table(title: str, caption: str | None = None) -> Table:
     return t
 
 
-def build_student_table(students: Iterable[Dict[str, Any]], title: str = "Students", at_risk_cutoff=None) -> Table:
+def build_student_table(students: Iterable[Dict[str, Any]], title: str = "Students") -> Table:
     table = _styled_table(title)
     headers: List[List[str]] = [
         ["ID", "left"], ["Last", "left"], ["First", "left"], ["Section", "left"],
@@ -105,10 +105,6 @@ def build_student_table(students: Iterable[Dict[str, Any]], title: str = "Studen
         quizzes = [s.get(k) for k in q_keys]
         vals = [v for v in quizzes if isinstance(v, (int, float))]
         quiz_avg = round(sum(vals) / len(q_keys), 2) if vals else ""
-        g = s.get('weighted_grade', None)
-        row_style = None
-        if at_risk_cutoff is not None and isinstance(g, (int, float)) and g < float(at_risk_cutoff):
-            row_style = "bold red"
         row = [
             _format_cell_value(s.get("student_id", "")),
             _format_cell_value(s.get("last_name", "")),
@@ -121,7 +117,7 @@ def build_student_table(students: Iterable[Dict[str, Any]], title: str = "Studen
             _progress_bar(s.get('attendance_percent', None)),
             _colorize_percent(s.get('weighted_grade', None), decimals=2),
         ]
-        table.add_row(*row, style=row_style)
+        table.add_row(*row)
     return table
 
 

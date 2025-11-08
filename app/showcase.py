@@ -48,7 +48,6 @@ def run_showcase(config_path: str = "config.json") -> None:
         build_student_table(
             students,
             title="Overall Roster",
-            at_risk_cutoff=config["thresholds"]["at_risk_cutoff"],
         )
     )
 
@@ -90,7 +89,6 @@ def run_showcase(config_path: str = "config.json") -> None:
             build_student_table(
                 section_grades,
                 title=f"Section: {section_name}",
-                at_risk_cutoff=config["thresholds"]["at_risk_cutoff"],
             )
         )
 
@@ -101,21 +99,18 @@ def run_showcase(config_path: str = "config.json") -> None:
             build_student_table(
                 sort_students(studs, sort_by="weighted_grade", reverse=True),
                 title=f"Sorted by Grade (desc) — {section_name}",
-                at_risk_cutoff=config["thresholds"]["at_risk_cutoff"],
             )
         )
         console.print(
             build_student_table(
                 sort_students(studs, sort_by="last_name"),
                 title=f"Sorted by Last Name — {section_name}",
-                at_risk_cutoff=config["thresholds"]["at_risk_cutoff"],
             )
         )
         console.print(
             build_student_table(
                 sort_students(studs, sort_by="first_name"),
                 title=f"Sorted by First Name — {section_name}",
-                at_risk_cutoff=config["thresholds"]["at_risk_cutoff"],
             )
         )
 
