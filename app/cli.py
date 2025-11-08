@@ -65,7 +65,11 @@ def arrow_menu(title, options, level=1):
             else:
                 table.add_row(f"  {key}  ", desc)
         console.print(table)
+<<<<<<< HEAD
         console.print("[dim]Use ↑ ↓ to navigate and Enter to select.[/dim]")
+=======
+        console.print("[dim]Enter your choice (e.g., a) or 0 to go back.[/dim]")
+>>>>>>> 9a38399efcc8ccd705f2603684cb66af211ba486
 
         key = readchar.readkey()
         if key == readchar.key.UP:
@@ -215,12 +219,25 @@ def lookup_by_last_name():
 # Submenus
 # =====================================
 def course_dashboard():
+<<<<<<< HEAD
     options = {"1.a": "View Overall Summary", "1.b": "View Grade Histogram",
                "1.c": "View Grade Box Plot", "1.d": "View Improvement Insights",
                "1.e": "Back to Main Menu"}
     while True:
         choice = arrow_menu("Course Dashboard", options, level=2)
         if choice == "1.e":
+=======
+    options = {
+        "a": "View Overall Summary",
+        "b": "View Grade Histogram",
+        "c": "View Grade Box Plot",
+        "d": "View Improvement Insights",
+        "e": "Back to Main Menu"
+    }
+    while True:
+        choice = submenu("OPTION 1: COURSE DASHBOARD", options)
+        if choice is None or choice == "e":
+>>>>>>> 9a38399efcc8ccd705f2603684cb66af211ba486
             break
         elif choice == "1.a":
             view_overall_summary()
@@ -232,11 +249,22 @@ def course_dashboard():
             improvement_insights()
 
 def section_analytics():
+<<<<<<< HEAD
     options = {"2.a": "Compare All Sections", "2.b": "View Report for Specific Section",
                "2.e": "Back to Main Menu"}
     while True:
         choice = arrow_menu("Section Analytics", options, level=2)
         if choice == "2.e":
+=======
+    options = {
+        "a": "Compare All Sections",
+        "b": "View Report for Specific Section",
+        "c": "Back to Main Menu"
+    }
+    while True:
+        choice = submenu("OPTION 2: SECTION ANALYTICS", options)
+        if choice is None or choice == "c":
+>>>>>>> 9a38399efcc8ccd705f2603684cb66af211ba486
             break
         elif choice == "2.a":
             compare_all_sections()
@@ -244,11 +272,23 @@ def section_analytics():
             view_specific_section()
 
 def student_reports():
+<<<<<<< HEAD
     options = {"3.a": "View 'At-Risk' Student List", "3.b": "Export 'At-Risk' List to CSV",
                "3.c": "Look Up Individual Student", "3.d": "Back to Main Menu"}
     while True:
         choice = arrow_menu("Student Reports", options, level=2)
         if choice == "3.d":
+=======
+    options = {
+        "a": "View 'At-Risk' Student List",
+        "b": "Export 'At-Risk' List to CSV",
+        "c": "Look Up Individual Student",
+        "d": "Back to Main Menu"
+    }
+    while True:
+        choice = submenu("OPTION 3: STUDENT REPORTS", options)
+        if choice is None or choice == "d":
+>>>>>>> 9a38399efcc8ccd705f2603684cb66af211ba486
             break
         elif choice == "3.a":
             view_at_risk_list()
@@ -258,11 +298,22 @@ def student_reports():
             lookup_student()
 
 def tools_utilities():
+<<<<<<< HEAD
     options = {"4.a": "Apply Grade Curve", "4.b": "Run Analytics (NumPy Version)",
                "4.c": "Back to Main Menu"}
     while True:
         choice = arrow_menu("Tools & Utilities", options, level=2)
         if choice == "4.c":
+=======
+    options = {
+        "a": "Apply Grade Curve",
+        "b": "Run Analytics (NumPy Version)",
+        "c": "Back to Main Menu"
+    }
+    while True:
+        choice = submenu("OPTION 4: TOOLS & UTILITIES", options)
+        if choice is None or choice == "c":
+>>>>>>> 9a38399efcc8ccd705f2603684cb66af211ba486
             break
         elif choice == "4.a":
             apply_grade_curve()
