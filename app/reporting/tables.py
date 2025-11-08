@@ -1,5 +1,6 @@
 from typing import Any, Dict, Iterable, List
 from rich.table import Table
+from rich import box
 
 
 def _quiz_keys() -> List[str]:
@@ -10,6 +11,21 @@ def _format_cell_value(value: Any) -> str:
     """Format cell values; show literal 'None' (dim) for missing."""
     return "[dim]None[/dim]" if value is None else f"{value}"
 
+def _styled_table(title: str, caption: str | None = None) -> Table:
+    t = Table(
+        title=title,
+        header_style="bold cyan",
+        title_style="bold cyan",
+        border_style="cyan",
+        box=box.ROUNDED,          # rounded corners
+        highlight=True,           # highlight changed cells/selections
+        row_styles=["", "dim"],   # zebra striping
+        expand=True,              # use full terminal width
+    )
+    if caption:
+        t.caption = caption
+        t.caption_style = "dim"
+    return t
 
 def _color_for_grade(v: float) -> str:
     """Color mapping for 0-100 grades."""
@@ -42,7 +58,7 @@ def _colorize_percent(v: Any, decimals: int = 1, suffix: str = "") -> str:
     return f"[{color}]{formatted}[/]" if color else formatted
 
 
-def _progress_bar(percent: Any, width: int = 10) -> str:
+def _progress_bar(percent: Any, width: int = 16) -> str:
     if percent is None:
         return _format_cell_value(None)
     try:
@@ -56,8 +72,26 @@ def _progress_bar(percent: Any, width: int = 10) -> str:
     return f"{bar} {p:.0f}%"
 
 
-def build_student_table(students: Iterable[Dict[str, Any]], title: str = "Students", at_risk_cutoff=None) -> Table:
-    table = Table(title=title, header_style="bold cyan")
+def _styled_table(title: str, caption: str | None = None) -> Table:
+    """Create a consistently styled rich.Table for all renderers."""
+    t = Table(
+        title=title,
+        header_style="bold cyan",
+        title_style="bold cyan",
+        border_style="cyan",
+        box=box.ROUNDED,
+        highlight=True,
+        row_styles=["", "dim"],
+        expand=True,
+    )
+    if caption:
+        t.caption = caption
+        t.caption_style = "dim"
+    return t
+
+
+def build_student_table(students: Iterable[Dict[str, Any]], title: str = "Students") -> Table:
+    table = _styled_table(title)
     headers: List[List[str]] = [
         ["ID", "left"], ["Last", "left"], ["First", "left"], ["Section", "left"],
         ["Q1", "right"], ["Q2", "right"], ["Q3", "right"], ["Q4", "right"], ["Q5", "right"],
@@ -71,10 +105,6 @@ def build_student_table(students: Iterable[Dict[str, Any]], title: str = "Studen
         quizzes = [s.get(k) for k in q_keys]
         vals = [v for v in quizzes if isinstance(v, (int, float))]
         quiz_avg = round(sum(vals) / len(q_keys), 2) if vals else ""
-        g = s.get('weighted_grade', None)
-        row_style = None
-        if at_risk_cutoff is not None and isinstance(g, (int, float)) and g < float(at_risk_cutoff):
-            row_style = "bold red"
         row = [
             _format_cell_value(s.get("student_id", "")),
             _format_cell_value(s.get("last_name", "")),
@@ -87,12 +117,12 @@ def build_student_table(students: Iterable[Dict[str, Any]], title: str = "Studen
             _progress_bar(s.get('attendance_percent', None)),
             _colorize_percent(s.get('weighted_grade', None), decimals=2),
         ]
-        table.add_row(*row, style=row_style)
+        table.add_row(*row)
     return table
 
 
 def build_distribution_table(distribution: Dict[str, int], total: int, title: str = "Grade Distribution") -> Table:
-    table = Table(title=title, header_style="bold cyan")
+    table = _styled_table(title)
     table.add_column("Grade", justify="center")
     table.add_column("Count", justify="right")
     table.add_column("Percent", justify="right")
@@ -111,7 +141,7 @@ def build_distribution_table(distribution: Dict[str, int], total: int, title: st
 
 
 def build_section_summary_table(section_map: Dict[str, List[Dict[str, Any]]], averages: Dict[str, float], title: str = "Sections Summary") -> Table:
-    table = Table(title=title, header_style="bold cyan")
+    table = _styled_table(title)
     table.add_column("Section", justify="left")
     table.add_column("Students", justify="right")
     table.add_column("Avg Weighted", justify="right")
@@ -122,7 +152,7 @@ def build_section_summary_table(section_map: Dict[str, List[Dict[str, Any]]], av
 
 
 def build_rank_table(rows: List[Dict[str, Any]], title: str = "Ranking") -> Table:
-    table = Table(title=title, header_style="bold cyan")
+    table = _styled_table(title)
     table.add_column("Rank", justify="center")
     table.add_column("Student", justify="left")
     table.add_column("Section", justify="left")
@@ -136,7 +166,7 @@ def build_rank_table(rows: List[Dict[str, Any]], title: str = "Ranking") -> Tabl
 
 
 def build_curve_table(students: Iterable[Dict[str, Any]], title: str = "Curved Grades") -> Table:
-    table = Table(title=title, header_style="bold cyan")
+    table = _styled_table(title)
     table.add_column("Student", justify="left")
     table.add_column("Section", justify="left")
     table.add_column("Original", justify="right")
@@ -155,7 +185,7 @@ def build_curve_table(students: Iterable[Dict[str, Any]], title: str = "Curved G
 
 
 def build_hardest_topic_table(quiz_averages: Dict[str, float], quiz_counts: Dict[str, int], hardest_quiz: str, title: str = "Hardest Topic Analysis") -> Table:
-    table = Table(title=title, header_style="bold cyan")
+    table = _styled_table(title)
     table.add_column("Quiz", justify="left")
     table.add_column("Avg %", justify="right")
     table.add_column("Count", justify="right")
@@ -173,7 +203,7 @@ def build_hardest_topic_table(quiz_averages: Dict[str, float], quiz_counts: Dict
 def build_quiz_comparison_table(avg_by_section: Dict[str, Dict[str, float]], quiz_keys: List[str], lowest_per_quiz: Dict[str, Dict[str, Any]], title: str = "Quiz Averages by Section") -> Table:
     # Dynamic columns with sections
     sections = sorted(avg_by_section.keys())
-    table = Table(title=title, header_style="bold cyan")
+    table = _styled_table(title)
     table.add_column("Quiz", justify="left")
     for sec in sections:
         table.add_column(sec, justify="right")
