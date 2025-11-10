@@ -39,7 +39,7 @@ def run_showcase(config_path: str = "config.json") -> None:
 
     # == INGEST ==
     console.rule("INGEST")
-    students = read_csv_data(config["file_paths"]["input_csv"])
+    students = read_csv_data(config["file_paths"]["input_csv"], config)
 
     # == TRANSFORM: WEIGHTED GRADES ==
     console.rule("TRANSFORM: WEIGHTED GRADES")

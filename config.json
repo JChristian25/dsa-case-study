@@ -17,5 +17,9 @@
       "C": 70,
       "D": 60
     }
+  },
+  "columns": {
+    "required": ["student_id", "last_name", "first_name", "section"],
+    "numeric": ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "attendance_percent"]
   }
 }
