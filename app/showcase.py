@@ -20,6 +20,7 @@ from app.analytics.stats import (
 from app.analytics.insights import (
     get_quiz_averages,
     get_sections_quiz_averages,
+    track_midterm_to_final_improvement,
 )
 from app.reporting.tables import (
     build_student_table,
@@ -31,6 +32,11 @@ from app.reporting.tables import (
     build_quiz_comparison_table,
 )
 from app.reporting.exporter import export_to_csv
+from app.reporting.plotting import (
+    plot_grade_histogram,
+    plot_combined_histogram,
+    _is_display_available,
+)
 
 
 def run_showcase(config_path: str = "config.json") -> None:
@@ -39,7 +45,7 @@ def run_showcase(config_path: str = "config.json") -> None:
 
     # == INGEST ==
     console.rule("INGEST")
-    students = read_csv_data(config["file_paths"]["input_csv"])
+    students = read_csv_data(config["file_paths"]["input_csv"], config)
 
     # == TRANSFORM: WEIGHTED GRADES ==
     console.rule("TRANSFORM: WEIGHTED GRADES")
@@ -189,7 +195,7 @@ def run_showcase(config_path: str = "config.json") -> None:
     N = 10
     top_students_overall = get_top_n_students(students, N)
     rows = [dict(rank=i + 1, **s) for i, s in enumerate(top_students_overall)]
-    console.print(build_rank_table(rows, title=f"Top {N} — {section_name}"))
+    console.print(build_rank_table(rows, title=f"Top {N} — Overall"))
 
     # == PERCENTILES == (to add)
     console.rule("PERCENTILES (to add)")
@@ -200,15 +206,73 @@ def run_showcase(config_path: str = "config.json") -> None:
     console.print("[dim]Outlier detection not yet implemented.[/dim]")
 
     # == IMPROVEMENT INSIGHTS == (to add)
-    console.rule("IMPROVEMENT INSIGHTS (to add)")
-    console.print("[dim]Improvement analysis (e.g., midterm→final) not yet implemented.[/dim]")
+    console.rule("IMPROVEMENT INSIGHTS")
+    imp = track_midterm_to_final_improvement(students)
+    console.print("[bold]Midterm vs. Final Improvement Analysis:[/bold]")
+    if imp["total_students"] == 0:
+        console.print("No midterm and final exam data available to analyze.")
+    else:
+        console.print(f"- Total students analyzed: {imp['total_students']}")
+        console.print(f"- Students who improved: {imp['counts']['improved']} ({imp['percentages']['improved']:.1f}%)")
+        console.print(f"- Students who stayed the same: {imp['counts']['same']} ({imp['percentages']['same']:.1f}%)")
+        console.print(f"- Students who declined: {imp['counts']['declined']} ({imp['percentages']['declined']:.1f}%)")
+        if imp["avg_improvement"] > 0:
+            console.print(f"- Average improvement among improvers: {imp['avg_improvement']:.1f} points")
+        if imp["avg_decline"] > 0 and imp["counts"]["declined"] > 0:
+            console.print(f"- Average decline among decliners: {imp['avg_decline']:.1f} points")
+        if imp.get("suggestions"):
+            console.print(f"\n[bold yellow]SUGGESTIONS:[/bold yellow]")
+            for s in imp["suggestions"]:
+                console.print(f"- {s}")
 
     # == AT-RISK LIST/EXPORT == (to add)
     console.rule("AT-RISK LIST/EXPORT (to add)")
     console.print("[dim]At-risk list and export not yet implemented.[/dim]")
 
     # == PLOTS == (to add)
-    console.rule("PLOTS (to add)")
-    console.print("[dim]Histogram/box plot generation not yet wired in.[/dim]")
+    console.rule("PLOTS")
+    
+    has_display = _is_display_available()
+    if has_display:
+        console.print("[bold cyan]Generating histograms (saving & displaying)...[/bold cyan]")
+    else:
+        console.print("[bold cyan]Generating histograms (saving to files - no display available)...[/bold cyan]")
+    
+    # Overall weighted grade distribution
+    file1 = plot_grade_histogram(students, "weighted_grade", "Overall Weighted Grade Distribution")
+    console.print(f"[green]✓[/green] Saved: {file1}")
+    
+    # Quiz distributions
+    file2 = plot_combined_histogram(
+        students, 
+        ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5"], 
+        "Quiz Scores Distribution (All Students)"
+    )
+    console.print(f"[green]✓[/green] Saved: {file2}")
+    
+    # Midterm and Final
+    file3 = plot_combined_histogram(
+        students, 
+        ["midterm", "final"], 
+        "Midterm vs Final Exam Distribution"
+    )
+    console.print(f"[green]✓[/green] Saved: {file3}")
+    
+    # Attendance
+    file4 = plot_grade_histogram(students, "attendance_percent", "Attendance Distribution")
+    console.print(f"[green]✓[/green] Saved: {file4}")
+    
+    # All scores combined
+    file5 = plot_combined_histogram(
+        students,
+        ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade"],
+        "All Scores including Weighted Grade"
+    )
+    console.print(f"[green]✓[/green] Saved: {file5}")
+    
+    if has_display:
+        console.print("[bold green]All plots saved to output/plots/ and displayed![/bold green]")
+    else:
+        console.print("[bold green]All plots saved to output/plots/ (check the folder to view images)[/bold green]")
 
     console.rule("DONE")
