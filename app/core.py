@@ -8,35 +8,38 @@ def load_config(filepath: str) -> Dict[str, Any]:
     with open(filepath, 'r') as f:
         return json.load(f)
 
-def read_csv_data(filepath: str) -> List[Dict[str, Any]]:
-    # Initialize empty list to store processed records
-    records = []    
-    # Open CSV file and create DictReader for column-based access
-    with open(filepath, newline='') as csvfile: 
+def read_csv_data(filepath: str, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    records = []
+    required_columns = config.get("columns", {}).get("required", [])
+    numeric_columns = config.get("columns", {}).get("numeric", [])
+
+    with open(filepath, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
-        for row in reader:
-            # Strip whitespace from string values while preserving other types
+        for i, row in enumerate(reader, start=2):  # Start from line 2 for error reporting
             row = {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
-            # Process each field in the row
-            for key in row:
-                # Skip processing for non-numeric fields (student info and section)
-                if key not in ['student_id', 'last_name', 'first_name', 'section']:
-                    value = row[key]
-                    # Set empty or None values to None
-                    if value == '' or value is None:
-                        row[key] = None
-                        continue
-                    try:
-                        # Convert to float and validate range (0-100 for grades)
-                        num = float(value)
-                        if 0 <= num <= 100:
-                            row[key] = num
-                        else: # Invalid range, set to None
-                            row[key] = None
-                    except ValueError:
-                        # Non-numeric value, set to None
-                        row[key] = None
-            # Add processed row to records list
+
+            # Validate required fields
+            if not all(row.get(col) for col in required_columns):
+                print(f"Warning: Skipping row {i} due to missing required field(s).")
+                continue
+
+            # Process and validate numeric fields
+            for col in numeric_columns:
+                value = row.get(col)
+                if value is None or value == '':
+                    row[col] = None
+                    continue
+                try:
+                    num = float(value)
+                    if not (0 <= num <= 100):
+                        print(f"Warning: Invalid value '{value}' in row {i}, column '{col}'. Setting to None.")
+                        row[col] = None
+                    else:
+                        row[col] = num
+                except (ValueError, TypeError):
+                    print(f"Warning: Non-numeric value '{value}' in row {i}, column '{col}'. Setting to None.")
+                    row[col] = None
+            
             records.append(row)
     return records
 
@@ -61,7 +64,8 @@ def insert_student(
         if section not in sections:
             sections[section] = []
         sections[section].append(student)
-        
+
+
 def delete_student(
     sections: Dict[str, List[Dict[str, Any]]], student_id: str
 ) -> bool:
