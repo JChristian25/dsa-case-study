@@ -65,8 +65,14 @@ def track_midterm_to_final_improvement(students: List[Dict[str, Any]]) -> Dict[s
     }
 
 def correlate_attendance_and_grades(students: List[Dict[str, Any]], threshold: float = 80.0) -> Dict[str, Any]:
-    low_attendance = [s for s in students if s.get('attendance') is not None and s['attendance'] < threshold]
-    high_attendance = [s for s in students if s.get('attendance') is not None and s['attendance'] >= threshold]
+    low_attendance = [
+        s for s in students
+        if s.get('attendance_percent') is not None and s['attendance_percent'] < threshold
+    ]
+    high_attendance = [
+        s for s in students
+        if s.get('attendance_percent') is not None and s['attendance_percent'] >= threshold
+    ]
     if not low_attendance and not high_attendance:
         return {
             'threshold': threshold,
@@ -228,8 +234,14 @@ def get_sections_quiz_averages(sections_data: Dict[str, List[Dict[str, Any]]]) -
 
 
 def get_attendance_grade_correlation(students: List[Dict[str, Any]], threshold: float = 80.0) -> Dict[str, Any]:
-    low_attendance = [s for s in students if s.get('attendance') is not None and s['attendance'] < threshold]
-    high_attendance = [s for s in students if s.get('attendance') is not None and s['attendance'] >= threshold]
+    low_attendance = [
+        s for s in students
+        if s.get('attendance_percent') is not None and s['attendance_percent'] < threshold
+    ]
+    high_attendance = [
+        s for s in students
+        if s.get('attendance_percent') is not None and s['attendance_percent'] >= threshold
+    ]
     
     low_avg_grade = 0.0
     high_avg_grade = 0.0

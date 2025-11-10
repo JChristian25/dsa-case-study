@@ -48,7 +48,7 @@ def run_showcase(config_path: str = "config.json") -> None:
     students = read_csv_data(config["file_paths"]["input_csv"], config)
 
     # == TRANSFORM: WEIGHTED GRADES ==
-    console.rule("TRANSFORM: WEIGHTED GRADES")
+    console.rule("TRANSFORM")
     students = compute_weighted_grades(students, config["grade_weights"])
     console.print(
         build_student_table(
@@ -88,6 +88,7 @@ def run_showcase(config_path: str = "config.json") -> None:
             console.print(f"Deleted student with ID {to_delete}")
 
     # == SECTION TABLES ==
+    console.rule("ANALYZE")
     console.rule("SECTION TABLES")
     for section_name, studs in sections.items():
         section_grades = compute_weighted_grades(studs, config["grade_weights"])
@@ -180,15 +181,6 @@ def run_showcase(config_path: str = "config.json") -> None:
     students = apply_grade_curve(students, method="normalize", value=100.0)
     console.print(build_curve_table(students[:5], title="Curve Preview (normalize to 100)"))
 
-    # == EXPORTS ==
-    console.rule("EXPORTS")
-    for section_name, section_data in sections.items():
-        if section_data:
-            export_to_csv(
-                section_data,
-                f"{config['file_paths']['output_dir']}section_{section_name}_report.csv",
-            )
-
     # == RANKINGS OVERALL == (to add)
     console.rule("RANKINGS OVERALL (to add)")
     # console.print("[dim]Overall ranking not yet implemented.[/dim]")
@@ -224,6 +216,17 @@ def run_showcase(config_path: str = "config.json") -> None:
             console.print(f"\n[bold yellow]SUGGESTIONS:[/bold yellow]")
             for s in imp["suggestions"]:
                 console.print(f"- {s}")
+
+    # == REPORT ==
+    console.rule("REPORT")
+    # EXPORTS
+    console.rule("EXPORTS")
+    for section_name, section_data in sections.items():
+        if section_data:
+            export_to_csv(
+                section_data,
+                f"{config['file_paths']['output_dir']}section_{section_name}_report.csv",
+            )
 
     # == AT-RISK LIST/EXPORT == (to add)
     console.rule("AT-RISK LIST/EXPORT (to add)")
