@@ -64,9 +64,6 @@ def calculate_distribution(students: List[Dict[str, Any]], thresholds: Dict[str,
 def calculate_percentile(students: List[Dict[str, Any]], percentile: int) -> float | None:
     pass
 
-def apply_grade_curve(students: List[Dict[str, Any]], method: str = "flat", value: float = 0) -> List[Dict[str, Any]]:
-    pass
-
 def _get_grade(student: Dict[str, Any]) -> float:
     """Helper function to get a student's grade, defaulting to 0."""
     return student.get("weighted_grade", 0)

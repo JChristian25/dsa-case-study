@@ -2,6 +2,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress
+from rich.align import Align
+from rich.text import Text
 from time import sleep
 import sys
 import readchar
@@ -39,6 +41,11 @@ from app.reporting.tables import (
     build_quiz_comparison_table,
 )
 from app.reporting.exporter import export_to_csv
+from app.reporting.plotting import (
+    plot_grade_histogram,
+    plot_combined_histogram,
+    _is_display_available,
+)
 
 console = Console()
 
@@ -129,15 +136,65 @@ def paginate_section_summary(sections_map: Dict[str, List[Dict[str, Any]]], aver
     _paginate_loop(render, total, page_size)
 
 def load_or_reload_data(config_path: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str]:
+    from rich.align import Align
+    from rich.text import Text
+    
     console.clear()
-    console.print("[bold yellow]Loading configuration and data...[/bold yellow]")
+    
+    # Loading header
+    header = Panel(
+        Align.center(Text("📂 DATA LOADING", style="bold cyan")),
+        border_style="cyan",
+        padding=(1, 2)
+    )
+    console.print(Align.center(header))
+    console.print()
+    
     chosen_path = config_path or prompt_str("Config path (default 'config.json'):", "config.json")
-    config = load_config(chosen_path)
-    students_raw = read_csv_data(config["file_paths"]["input_csv"])
-    students = compute_weighted_grades(students_raw, config["grade_weights"])
-    sections = group_students_by_section(students)
-    console.print("[bold green]Data loaded.[/bold green]")
-    input("Press Enter to continue...")
+    
+    # Progress animation
+    with Progress(console=console) as progress:
+        task1 = progress.add_task("[cyan]Loading configuration...", total=100)
+        for _ in range(100):
+            progress.update(task1, advance=1)
+            sleep(0.005)
+        
+        config = load_config(chosen_path)
+        console.print("[bold green]✓[/bold green] Configuration loaded")
+        
+        task2 = progress.add_task("[cyan]Reading CSV data...", total=100)
+        for _ in range(100):
+            progress.update(task2, advance=1)
+            sleep(0.005)
+        
+        students_raw = read_csv_data(config["file_paths"]["input_csv"], config)
+        console.print(f"[bold green]✓[/bold green] Loaded {len(students_raw)} student records")
+        
+        task3 = progress.add_task("[cyan]Computing weighted grades...", total=100)
+        for _ in range(100):
+            progress.update(task3, advance=1)
+            sleep(0.005)
+        
+        students = compute_weighted_grades(students_raw, config["grade_weights"])
+        console.print("[bold green]✓[/bold green] Grades computed")
+        
+        task4 = progress.add_task("[cyan]Grouping by sections...", total=100)
+        for _ in range(100):
+            progress.update(task4, advance=1)
+            sleep(0.005)
+        
+        sections = group_students_by_section(students)
+        console.print(f"[bold green]✓[/bold green] Organized into {len(sections)} sections")
+    
+    console.print()
+    success_panel = Panel(
+        Align.center(Text("✨ DATA LOADED SUCCESSFULLY ✨", style="bold green")),
+        border_style="green",
+        padding=(1, 2)
+    )
+    console.print(Align.center(success_panel))
+    
+    input("\nPress Enter to continue...")
     return students, sections, chosen_path
 
 def insert_demo_student(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
@@ -179,54 +236,139 @@ def delete_student_by_id(students: List[Dict[str, Any]], sections: Dict[str, Lis
 # Animated Title (might change)
 # =====================================
 def animated_title() -> None:
-    title_text = "📊 Academic Analytics Lite 📊"
-    bg_style = "on #0f1a26"
-    colors = ["cyan", "magenta", "yellow", "green", "blue"]
-
-    for i in range(1, len(title_text)+1):
-        console.clear()
-        console.print(Panel(title_text[:i], style=f"bold cyan {bg_style}", expand=False, border_style="bright_cyan"))
-        sleep(0.05)
-
-    for _ in range(2):
-        for color in colors:
-            console.clear()
-            console.print(Panel(title_text, style=f"bold {color} {bg_style}", expand=False, border_style=color))
-            sleep(0.4)
-  
+    from rich.align import Align
+    from rich.text import Text
+    import platform
+    
     console.clear()
-    console.print(Panel(title_text, style=f"bold cyan {bg_style}", expand=False, border_style="cyan"))
+    
+    # ASCII Art Title
+    title_art = """
+    ╔═══════════════════════════════════════════════════════════════╗
+    ║                                                               ║
+    ║      █████╗  ██████╗ █████╗ ██████╗ ███████╗███╗   ███╗██╗   ║
+    ║     ██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝████╗ ████║██║   ║
+    ║     ███████║██║     ███████║██║  ██║█████╗  ██╔████╔██║██║   ║
+    ║     ██╔══██║██║     ██╔══██║██║  ██║██╔══╝  ██║╚██╔╝██║██║   ║
+    ║     ██║  ██║╚██████╗██║  ██║██████╔╝███████╗██║ ╚═╝ ██║██║   ║
+    ║     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝     ╚═╝╚═╝   ║
+    ║                                                               ║
+    ║          📊  A C A D E M I C   A N A L Y T I C S  📊          ║
+    ║                         L I T E                               ║
+    ║                                                               ║
+    ╚═══════════════════════════════════════════════════════════════╝
+    """
+    
+    # Gradient color animation
+    colors = ["cyan", "bright_cyan", "blue", "bright_blue", "magenta", "bright_magenta"]
+    
+    for color in colors:
+        console.clear()
+        styled_title = Text(title_art, style=f"bold {color}")
+        console.print(Align.center(styled_title))
+        sleep(0.15)
+    
+    # Final display with info
+    console.clear()
+    final_title = Text(title_art, style="bold cyan")
+    console.print(Align.center(final_title))
+    
+    # System info panel
+    info_text = Text()
+    info_text.append("System: ", style="bold yellow")
+    info_text.append(f"{platform.system()} {platform.release()}\n", style="white")
+    info_text.append("Python: ", style="bold yellow")
+    info_text.append(f"{platform.python_version()}\n", style="white")
+    info_text.append("Status: ", style="bold yellow")
+    info_text.append("Ready", style="bold green")
+    
+    info_panel = Panel(
+        Align.center(info_text),
+        title="[bold white]System Information[/bold white]",
+        border_style="cyan",
+        padding=(1, 2)
+    )
+    console.print(Align.center(info_panel))
+    console.print()
+    
+    # Progress bar animation
+    with Progress(console=console) as progress:
+        task = progress.add_task("[cyan]Initializing...", total=100)
+        for _ in range(100):
+            progress.update(task, advance=1)
+            sleep(0.01)
+    
+    console.print()
+    console.print(Align.center("[bold green]✓ System Ready[/bold green]"))
     sleep(0.8)
+    console.clear()
 
 # =====================================
 # Arrow-key menu navigation with levels
 # =====================================
 def arrow_menu(title: str, options: Dict[str, str], level: int = 1) -> str:
+    from rich.align import Align
+    
     keys = list(options.keys())
     selected = 0
     if level == 1:
         panel_style = "bold cyan on #0f1a26"
         border_color = "cyan"
+        icon = "🏠"
     elif level == 2:
         panel_style = "bold #008b8b on #0f1a26"  # teal/dark cyan
         border_color = "#008b8b"
+        icon = "📂"
     else:
         panel_style = "bold #005757 on #0f1a26"  # darker cyan for third-level
         border_color = "#005757"
+        icon = "📄"
 
     while True:
         console.clear()
-        console.print(Panel(f"📂 {title}", style=panel_style, expand=False, border_style=border_color))
-        table = Table(title="Select an Option", style=panel_style)
-        table.add_column("Option", justify="center")
-        table.add_column("Description", justify="left")
+        
+        # Enhanced title panel
+        title_panel = Panel(
+            Align.center(f"{icon}  {title}  {icon}"),
+            style=panel_style,
+            border_style=border_color,
+            padding=(1, 4)
+        )
+        console.print(Align.center(title_panel))
+        console.print()
+        
+        # Options table
+        table = Table(
+            title="[bold cyan]Select an Option[/bold cyan]",
+            style=panel_style,
+            show_header=True,
+            header_style="bold yellow",
+            border_style=border_color,
+            expand=False
+        )
+        table.add_column("Key", justify="center", style="bold white", width=8)
+        table.add_column("Option", justify="left", width=40)
+        
         for i, (key, desc) in enumerate(options.items()):
             if i == selected:
-                table.add_row(f"> {key} <", f"[bold green]{desc}[/bold green]")
+                table.add_row(
+                    f"▶ {key} ◀",
+                    f"[bold green]{desc}[/bold green]",
+                    style="on #1a3a3a"
+                )
             else:
                 table.add_row(f"  {key}  ", desc)
-        console.print(table)
-        console.print("[dim]Use ↑ ↓ to navigate and Enter to select.[/dim]")
+        
+        console.print(Align.center(table))
+        console.print()
+        
+        # Instructions
+        instructions = Panel(
+            "[dim]Use [bold]↑ ↓[/bold] to navigate  •  Press [bold]Enter[/bold] to select[/dim]",
+            border_style="dim",
+            padding=(0, 2)
+        )
+        console.print(Align.center(instructions))
 
         key = readchar.readkey()
         if key == readchar.key.UP:
@@ -427,6 +569,148 @@ def lookup_by_last_name(students: List[Dict[str, Any]]) -> None:
     input("Press Enter to return to Lookup Menu...")
 
 # =====================================
+# Plotting Functions
+# =====================================
+def plot_overall_histograms(students: List[Dict[str, Any]]) -> None:
+    console.clear()
+    console.print("[bold cyan]Select histogram type:[/bold cyan]")
+    options = {
+        "1": "Weighted Grade Distribution",
+        "2": "Quiz Scores Distribution",
+        "3": "Midterm vs Final",
+        "4": "Attendance Distribution",
+        "5": "All Scores Combined",
+        "6": "Generate All Plots",
+        "7": "Back"
+    }
+    choice = arrow_menu("Overall Histograms", options, level=3)
+    
+    has_display = _is_display_available()
+    display_msg = " (and displayed)" if has_display else ""
+    
+    if choice == "1":
+        file_path = plot_grade_histogram(students, "weighted_grade", "Overall Weighted Grade Distribution")
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "2":
+        file_path = plot_combined_histogram(students, ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5"], "Quiz Scores Distribution")
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "3":
+        file_path = plot_combined_histogram(students, ["midterm", "final"], "Midterm vs Final Exam Distribution")
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "4":
+        file_path = plot_grade_histogram(students, "attendance_percent", "Attendance Distribution")
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "5":
+        file_path = plot_combined_histogram(
+            students,
+            ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade"],
+            "All Scores including Weighted Grade"
+        )
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "6":
+        console.print("[bold yellow]Generating all plots...[/bold yellow]")
+        f1 = plot_grade_histogram(students, "weighted_grade", "Overall Weighted Grade Distribution")
+        f2 = plot_combined_histogram(students, ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5"], "Quiz Scores Distribution")
+        f3 = plot_combined_histogram(students, ["midterm", "final"], "Midterm vs Final Exam Distribution")
+        f4 = plot_grade_histogram(students, "attendance_percent", "Attendance Distribution")
+        f5 = plot_combined_histogram(
+            students,
+            ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade"],
+            "All Scores including Weighted Grade"
+        )
+        if has_display:
+            console.print(f"[bold green]All plots saved to output/plots/ and displayed![/bold green]")
+        else:
+            console.print(f"[bold green]All plots saved to output/plots/ (check folder to view)[/bold green]")
+        input("Press Enter to continue...")
+
+def plot_section_histograms(sections: Dict[str, List[Dict[str, Any]]]) -> None:
+    console.clear()
+    section = _select_section(sections)
+    if not section:
+        return
+    
+    studs = sections[section]
+    console.print(f"[bold cyan]Select histogram for {section}:[/bold cyan]")
+    options = {
+        "1": "Weighted Grade Distribution",
+        "2": "Quiz Scores Distribution",
+        "3": "Midterm vs Final",
+        "4": "Attendance Distribution",
+        "5": "All Scores Combined",
+        "6": "Generate All Plots",
+        "7": "Back"
+    }
+    choice = arrow_menu(f"Section Histograms - {section}", options, level=3)
+    
+    has_display = _is_display_available()
+    display_msg = " (and displayed)" if has_display else ""
+    
+    if choice == "1":
+        file_path = plot_grade_histogram(studs, "weighted_grade", f"Weighted Grade Distribution - {section}")
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "2":
+        file_path = plot_combined_histogram(studs, ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5"], f"Quiz Scores Distribution - {section}")
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "3":
+        file_path = plot_combined_histogram(studs, ["midterm", "final"], f"Midterm vs Final - {section}")
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "4":
+        file_path = plot_grade_histogram(studs, "attendance_percent", f"Attendance Distribution - {section}")
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "5":
+        file_path = plot_combined_histogram(
+            studs,
+            ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade"],
+            f"All Scores - {section}"
+        )
+        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+        input("Press Enter to continue...")
+    elif choice == "6":
+        console.print("[bold yellow]Generating all plots...[/bold yellow]")
+        plot_grade_histogram(studs, "weighted_grade", f"Weighted Grade Distribution - {section}")
+        plot_combined_histogram(studs, ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5"], f"Quiz Scores Distribution - {section}")
+        plot_combined_histogram(studs, ["midterm", "final"], f"Midterm vs Final - {section}")
+        plot_grade_histogram(studs, "attendance_percent", f"Attendance Distribution - {section}")
+        plot_combined_histogram(
+            studs,
+            ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade"],
+            f"All Scores - {section}"
+        )
+        if has_display:
+            console.print(f"[bold green]All plots saved to output/plots/ and displayed![/bold green]")
+        else:
+            console.print(f"[bold green]All plots saved to output/plots/ (check folder to view)[/bold green]")
+        input("Press Enter to continue...")
+
+def plot_custom_histogram(students: List[Dict[str, Any]]) -> None:
+    console.clear()
+    console.print("[bold cyan]Select column to plot:[/bold cyan]")
+    console.print("Available: quiz1, quiz2, quiz3, quiz4, quiz5, midterm, final, weighted_grade, attendance_percent")
+    key = prompt_str("Enter column name:", "weighted_grade")
+    
+    if key not in ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade", "attendance_percent"]:
+        console.print(f"[bold red]Invalid column: {key}[/bold red]")
+        input("Press Enter to continue...")
+        return
+    
+    has_display = _is_display_available()
+    display_msg = " (and displayed)" if has_display else ""
+    
+    file_path = plot_grade_histogram(students, key)
+    console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
+    input("Press Enter to continue...")
+
+# =====================================
 # Submenus
 # =====================================
 def course_dashboard(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str]:
@@ -436,11 +720,12 @@ def course_dashboard(students: List[Dict[str, Any]], sections: Dict[str, List[Di
         "1.c": "View Section Averages",
         "1.d": "View Overall Ranking (Top N)",
         "1.e": "Curve Preview",
-        "1.f": "Back"
+        "1.f": "Overall Histograms",
+        "1.g": "Back"
     }
     while True:
         choice = arrow_menu("Course Dashboard", options, level=2)
-        if choice == "1.f":
+        if choice == "1.g":
             break
         elif choice == "1.a":
             view_overall_roster(students)
@@ -452,6 +737,8 @@ def course_dashboard(students: List[Dict[str, Any]], sections: Dict[str, List[Di
             view_overall_ranking(students)
         elif choice == "1.e":
             view_curve_preview(students)
+        elif choice == "1.f":
+            plot_overall_histograms(students)
     return students, sections, config_path
 
 def section_analytics(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str]:
@@ -462,11 +749,12 @@ def section_analytics(students: List[Dict[str, Any]], sections: Dict[str, List[D
         "2.d": "Section Grade Distribution",
         "2.e": "Hardest Topic per Section",
         "2.f": "Quiz Averages Comparison (All Sections)",
-        "2.g": "Back"
+        "2.g": "Section Histograms",
+        "2.h": "Back"
     }
     while True:
         choice = arrow_menu("Section Analytics", options, level=2)
-        if choice == "2.g":
+        if choice == "2.h":
             break
         elif choice == "2.a":
             view_section_table(sections)
@@ -480,6 +768,8 @@ def section_analytics(students: List[Dict[str, Any]], sections: Dict[str, List[D
             section_hardest_topic(sections)
         elif choice == "2.f":
             view_quiz_comparison(sections)
+        elif choice == "2.g":
+            plot_section_histograms(sections)
     return students, sections, config_path
 
 def student_reports(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str]:
@@ -516,11 +806,12 @@ def tools_utilities(students: List[Dict[str, Any]], sections: Dict[str, List[Dic
         "4.a": "Load/Reload Data",
         "4.b": "Insert Demo Student",
         "4.c": "Delete Student by ID",
-        "4.d": "Back"
+        "4.d": "Custom Histogram Plot",
+        "4.e": "Back"
     }
     while True:
         choice = arrow_menu("Tools & Utilities", options, level=2)
-        if choice == "4.d":
+        if choice == "4.e":
             break
         elif choice == "4.a":
             students, sections, config_path = load_or_reload_data(config_path)
@@ -536,6 +827,12 @@ def tools_utilities(students: List[Dict[str, Any]], sections: Dict[str, List[Dic
                 input("Press Enter to continue...")
             else:
                 students, sections = delete_student_by_id(students, sections)
+        elif choice == "4.d":
+            if not students:
+                console.print("[bold red]Load data first.[/bold red]")
+                input("Press Enter to continue...")
+            else:
+                plot_custom_histogram(students)
     return students, sections, config_path
 
 # =====================================
@@ -561,7 +858,41 @@ def run_menu() -> None:
             students, sections, config_path = tools_utilities(students, sections, config_path)
         elif choice == "5":
             console.clear()
-            console.print("[bold green]Exiting program. Goodbye![/bold green]")
+            
+            # Goodbye animation
+            goodbye_art = """
+            ╔═══════════════════════════════════════════════╗
+            ║                                               ║
+            ║      _____ _                 _                ║
+            ║     |_   _| |__   __ _ _ __ | | _____         ║
+            ║       | | | '_ \\ / _` | '_ \\| |/ / __|        ║
+            ║       | | | | | | (_| | | | |   <\\__ \\        ║
+            ║       |_| |_| |_|\\__,_|_| |_|_|\\_\\___/        ║
+            ║                                               ║
+            ║           for using Academic Analytics!       ║
+            ║                                               ║
+            ║                  👋 Goodbye! 👋                ║
+            ║                                               ║
+            ╚═══════════════════════════════════════════════╝
+            """
+            
+            colors = ["green", "cyan", "blue", "magenta"]
+            for color in colors:
+                console.clear()
+                styled = Text(goodbye_art, style=f"bold {color}")
+                console.print(Align.center(styled))
+                sleep(0.2)
+            
+            console.clear()
+            final_goodbye = Panel(
+                Align.center(Text("✨ Session Ended Successfully ✨\n\nThank you for using Academic Analytics Lite!", style="bold green")),
+                border_style="green",
+                padding=(2, 4)
+            )
+            console.print("\n" * 3)
+            console.print(Align.center(final_goodbye))
+            console.print("\n" * 2)
+            sleep(1)
             sys.exit()
 
 # =====================================
