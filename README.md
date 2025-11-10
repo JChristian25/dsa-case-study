@@ -8,6 +8,7 @@
   <img alt="NumPy" src="https://img.shields.io/badge/NumPy-Analytics-013243">
   <img alt="Matplotlib" src="https://img.shields.io/badge/Plots-Matplotlib-11557c">
 </div>
+-
 
 ### Overview
 
@@ -32,6 +33,9 @@ It ingests student CSV data, computes weighted grades, groups by section, surfac
 - Top/Bottom N rankings (overall and per section)
 - Grade letter distribution tables
 - Quiz insights (hardest topic, cross‑section averages)
+- Midterm → Final improvement insights (overall and per‑section)
+- Attendance ↔ Grade correlation (overall and per‑section)
+- Compare sections (text insights) for each quiz
 - Interactive TUI with pagination and menus (Rich)
 - CSV exports per section
 
@@ -65,10 +69,20 @@ python main.py --cli
 ### Usage
 - Showcase prints a curated sequence of tables and insights to the terminal.
 - CLI provides menus for:
-  - Course Dashboard (roster, distributions, ranking, curve preview)
-  - Section Analytics (per‑section views, sorting, distributions, hardest topic, quiz comparison)
+  - Course Dashboard
+    - Overall Roster, Grade Distribution, Section Averages
+    - Overall Ranking (Top N), Curve Preview, Histograms
+    - Improvement Insights (Midterm→Final)
+    - Attendance‑Grade Correlation (Overall)
+  - Section Analytics
+    - View/Sort Section, Top/Bottom N, Grade Distribution
+    - Hardest Topic per Section, Quiz Averages Comparison
+    - Compare Sections (Text Insights)
+    - Section Improvement Insights
+    - Section Attendance Correlation
+    - Section Histograms
   - Student Reports (at‑risk list, CSV export, lookup)
-  - Tools & Utilities (load/reload data, insert/delete demo student)
+  - Tools & Utilities (load/reload data, insert/delete demo student, custom plot)
 
 ### Configuration
 Edit `config.json` to point to your input and tweak behavior:
@@ -89,6 +103,7 @@ Edit `config.json` to point to your input and tweak behavior:
 ### Data & Outputs
 - Sample inputs are provided under `data/` (e.g., `input_bsit.csv`).
 - Exports are written to `output/` as `section_<SECTION>_report.csv`.
+
 
 ### Complexity Notes
 `read_csv_data` in `app/core.py` performs a single pass over the CSV using `csv.DictReader`, then iterates each row's fields to strip strings and parse numeric values (with range checks).

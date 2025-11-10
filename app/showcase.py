@@ -20,6 +20,7 @@ from app.analytics.stats import (
 from app.analytics.insights import (
     get_quiz_averages,
     get_sections_quiz_averages,
+    track_midterm_to_final_improvement,
 )
 from app.reporting.tables import (
     build_student_table,
@@ -205,8 +206,24 @@ def run_showcase(config_path: str = "config.json") -> None:
     console.print("[dim]Outlier detection not yet implemented.[/dim]")
 
     # == IMPROVEMENT INSIGHTS == (to add)
-    console.rule("IMPROVEMENT INSIGHTS (to add)")
-    console.print("[dim]Improvement analysis (e.g., midterm→final) not yet implemented.[/dim]")
+    console.rule("IMPROVEMENT INSIGHTS")
+    imp = track_midterm_to_final_improvement(students)
+    console.print("[bold]Midterm vs. Final Improvement Analysis:[/bold]")
+    if imp["total_students"] == 0:
+        console.print("No midterm and final exam data available to analyze.")
+    else:
+        console.print(f"- Total students analyzed: {imp['total_students']}")
+        console.print(f"- Students who improved: {imp['counts']['improved']} ({imp['percentages']['improved']:.1f}%)")
+        console.print(f"- Students who stayed the same: {imp['counts']['same']} ({imp['percentages']['same']:.1f}%)")
+        console.print(f"- Students who declined: {imp['counts']['declined']} ({imp['percentages']['declined']:.1f}%)")
+        if imp["avg_improvement"] > 0:
+            console.print(f"- Average improvement among improvers: {imp['avg_improvement']:.1f} points")
+        if imp["avg_decline"] > 0 and imp["counts"]["declined"] > 0:
+            console.print(f"- Average decline among decliners: {imp['avg_decline']:.1f} points")
+        if imp.get("suggestions"):
+            console.print(f"\n[bold yellow]SUGGESTIONS:[/bold yellow]")
+            for s in imp["suggestions"]:
+                console.print(f"- {s}")
 
     # == AT-RISK LIST/EXPORT == (to add)
     console.rule("AT-RISK LIST/EXPORT (to add)")

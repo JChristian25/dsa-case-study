@@ -4,6 +4,9 @@ from rich.panel import Panel
 from rich.progress import Progress
 from rich.align import Align
 from rich.text import Text
+from rich.theme import Theme
+from rich.layout import Layout
+from rich.live import Live
 from time import sleep
 import sys
 import readchar
@@ -30,6 +33,9 @@ from app.analytics.stats import (
 from app.analytics.insights import (
     get_quiz_averages,
     get_sections_quiz_averages,
+    track_midterm_to_final_improvement,
+    correlate_attendance_and_grades,
+    compare_sections,
 )
 from app.reporting.tables import (
     build_student_table,
@@ -47,7 +53,17 @@ from app.reporting.plotting import (
     _is_display_available,
 )
 
-console = Console()
+theme = Theme(
+    {
+        "app.title": "bold cyan",
+        "app.border": "cyan",
+        "app.help": "dim",
+        "good": "bold green",
+        "warn": "yellow",
+        "bad": "bold red",
+    }
+)
+console = Console(theme=theme)
 
 # =====================================
 # Helpers and State
@@ -86,6 +102,60 @@ def prompt_str(prompt_text: str, default: Optional[str] = None) -> str:
         return default
     return raw
 
+def _status_text_basic(students: Optional[List[Dict[str, Any]]] = None,
+                       sections: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+                       config_path: Optional[str] = None) -> str:
+    parts: List[str] = []
+    if students is not None:
+        parts.append(f"Students: {len(students)}")
+    if sections is not None:
+        parts.append(f"Sections: {len(sections)}")
+    if config_path:
+        parts.append(f"Config: {config_path}")
+    return "  |  ".join(parts)
+
+def _build_layout(header_title: str,
+                  help_text: str,
+                  status_text: str,
+                  *,
+                  panel_style: str = "bold cyan on #0f1a26",
+                  border_color: str = "cyan") -> Layout:
+    layout = Layout(name="root")
+    layout.split(
+        Layout(name="header", size=3),
+        Layout(name="body", ratio=1),
+        Layout(name="footer", size=3),
+    )
+    header_panel = Panel(
+        Align.center(Text(header_title, style="app.title")),
+        border_style=border_color,
+        style=panel_style,
+        padding=(0, 2),
+    )
+    layout["header"].update(header_panel)
+    footer_panel = Panel(
+        Align.center(Text.from_markup(f"[app.help]{help_text}[/app.help]\n{status_text or ''}")),
+        border_style="dim",
+        padding=(0, 2),
+    )
+    layout["footer"].update(footer_panel)
+    return layout
+
+def _show_in_layout(renderable: Any,
+                    title: str,
+                    help_text: str = "Press Enter or q/Esc/Backspace to return",
+                    status_text: str = "",
+                    *,
+                    panel_style: str = "bold cyan on #0f1a26",
+                    border_color: str = "cyan") -> None:
+    layout = _build_layout(title, help_text, status_text, panel_style=panel_style, border_color=border_color)
+    with Live(layout, console=console, screen=True, refresh_per_second=30):
+        layout["body"].update(Align(renderable, align="center", vertical="middle"))
+        while True:
+            key = readchar.readkey()
+            if key in (readchar.key.ENTER, getattr(readchar.key, "ESC", "\x1b"), readchar.key.BACKSPACE, "q", "Q"):
+                break
+
 def _paginate_loop(render_page_fn: Callable[[int, int, int], None], total_items: int, page_size: int = 10) -> None:
     if total_items <= 0:
         console.print("[bold red]No data to display.[/bold red]")
@@ -104,21 +174,66 @@ def _paginate_loop(render_page_fn: Callable[[int, int, int], None], total_items:
         elif key in (readchar.key.ESC, readchar.key.BACKSPACE, "q", "Q"):
             break
 
+def _paginate_loop_live(make_renderable_fn: Callable[[int, int, int], Any],
+                        total_items: int,
+                        page_size: int,
+                        base_title: str,
+                        help_text: str,
+                        status_text: str = "",
+                        *,
+                        panel_style: str = "bold cyan on #0f1a26",
+                        border_color: str = "cyan") -> None:
+    if total_items <= 0:
+        console.print("[bold red]No data to display.[/bold red]")
+        input("Press Enter to return...")
+        return
+    index = 0
+    max_index = (total_items - 1) // page_size * page_size
+    # initial layout
+    dynamic_title = f"{base_title} [1-{min(page_size, total_items)}/{total_items}]"
+    layout = _build_layout(dynamic_title, help_text, status_text, panel_style=panel_style, border_color=border_color)
+    with Live(layout, console=console, screen=True, refresh_per_second=30):
+        while True:
+            i_start = index
+            i_end = min(index + page_size, total_items)
+            # update header title with current range
+            dynamic_title = f"{base_title} [{i_start+1}-{i_end}/{total_items}]"
+            header_panel = Panel(
+                Align.center(Text(dynamic_title, style="app.title")),
+                border_style=border_color,
+                style=panel_style,
+                padding=(0, 2),
+            )
+            layout["header"].update(header_panel)
+            # update body with renderable
+            renderable = make_renderable_fn(i_start, i_end, total_items)
+            layout["body"].update(Align(renderable, align="center", vertical="middle"))
+            # read key
+            key = readchar.readkey()
+            if key == readchar.key.RIGHT:
+                index = 0 if index >= max_index else index + page_size
+            elif key == readchar.key.LEFT:
+                index = max_index if index == 0 else index - page_size
+            elif key in (getattr(readchar.key, "ESC", "\x1b"), readchar.key.BACKSPACE, "q", "Q"):
+                break
+
 def paginate_students_table(students: List[Dict[str, Any]], base_title: str, page_size: int = 10) -> None:
     total = len(students)
-    def render(i_start: int, i_end: int, total_items: int) -> None:
-        console.clear()
+    def make(i_start: int, i_end: int, total_items: int):
         title = f"{base_title} [{i_start+1}-{i_end}/{total_items}]"
-        console.print(build_student_table(students[i_start:i_end], title=title))
-    _paginate_loop(render, total, page_size)
+        return build_student_table(students[i_start:i_end], title=title)
+    help_text = "Use ←/→ to navigate pages • Press q/Esc/Backspace to return"
+    status_text = f"Students: {total}"
+    _paginate_loop_live(make, total, page_size, base_title, help_text, status_text)
 
 def paginate_rank_table(rows: List[Dict[str, Any]], base_title: str, page_size: int = 10) -> None:
     total = len(rows)
-    def render(i_start: int, i_end: int, total_items: int) -> None:
-        console.clear()
+    def make(i_start: int, i_end: int, total_items: int):
         title = f"{base_title} [{i_start+1}-{i_end}/{total_items}]"
-        console.print(build_rank_table(rows[i_start:i_end], title=title))
-    _paginate_loop(render, total, page_size)
+        return build_rank_table(rows[i_start:i_end], title=title)
+    help_text = "Use ←/→ to navigate pages • Press q/Esc/Backspace to return"
+    status_text = f"Rows: {total}"
+    _paginate_loop_live(make, total, page_size, base_title, help_text, status_text)
 
 def paginate_section_summary(sections_map: Dict[str, List[Dict[str, Any]]], averages: Dict[str, float], base_title: str, page_size: int = 10) -> None:
     section_names = sorted(sections_map.keys())
@@ -127,74 +242,64 @@ def paginate_section_summary(sections_map: Dict[str, List[Dict[str, Any]]], aver
         console.print("[bold red]No sections available.[/bold red]")
         input("Press Enter to return...")
         return
-    def render(i_start: int, i_end: int, total_items: int) -> None:
-        console.clear()
+    def make(i_start: int, i_end: int, total_items: int):
         subset_names = section_names[i_start:i_end]
         subset_map = {sec: sections_map[sec] for sec in subset_names}
         title = f"{base_title} [{i_start+1}-{i_end}/{total_items}]"
-        console.print(build_section_summary_table(subset_map, averages, title=title))
-    _paginate_loop(render, total, page_size)
+        return build_section_summary_table(subset_map, averages, title=title)
+    help_text = "Use ←/→ to navigate pages • Press q/Esc/Backspace to return"
+    status_text = f"Sections: {total}"
+    _paginate_loop_live(make, total, page_size, base_title, help_text, status_text)
 
 def load_or_reload_data(config_path: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str]:
     from rich.align import Align
     from rich.text import Text
+    from rich.panel import Panel
     
     console.clear()
     
-    # Loading header
-    header = Panel(
-        Align.center(Text("📂 DATA LOADING", style="bold cyan")),
-        border_style="cyan",
-        padding=(1, 2)
-    )
-    console.print(Align.center(header))
-    console.print()
-    
     chosen_path = config_path or prompt_str("Config path (default 'config.json'):", "config.json")
     
-    # Progress animation
-    with Progress(console=console) as progress:
-        task1 = progress.add_task("[cyan]Loading configuration...", total=100)
-        for _ in range(100):
-            progress.update(task1, advance=1)
-            sleep(0.005)
-        
-        config = load_config(chosen_path)
-        console.print("[bold green]✓[/bold green] Configuration loaded")
-        
-        task2 = progress.add_task("[cyan]Reading CSV data...", total=100)
-        for _ in range(100):
-            progress.update(task2, advance=1)
-            sleep(0.005)
-        
-        students_raw = read_csv_data(config["file_paths"]["input_csv"], config)
-        console.print(f"[bold green]✓[/bold green] Loaded {len(students_raw)} student records")
-        
-        task3 = progress.add_task("[cyan]Computing weighted grades...", total=100)
-        for _ in range(100):
-            progress.update(task3, advance=1)
-            sleep(0.005)
-        
-        students = compute_weighted_grades(students_raw, config["grade_weights"])
-        console.print("[bold green]✓[/bold green] Grades computed")
-        
-        task4 = progress.add_task("[cyan]Grouping by sections...", total=100)
-        for _ in range(100):
-            progress.update(task4, advance=1)
-            sleep(0.005)
-        
-        sections = group_students_by_section(students)
-        console.print(f"[bold green]✓[/bold green] Organized into {len(sections)} sections")
-    
-    console.print()
-    success_panel = Panel(
-        Align.center(Text("✨ DATA LOADED SUCCESSFULLY ✨", style="bold green")),
-        border_style="green",
-        padding=(1, 2)
-    )
-    console.print(Align.center(success_panel))
-    
-    input("\nPress Enter to continue...")
+    # Live layout with centered progress
+    header_title = "📂 DATA LOADING"
+    help_text = "Please wait while we load and process your data..."
+    status_text = f"Config: {chosen_path}"
+    layout = _build_layout(header_title, help_text, status_text)
+    with Live(layout, console=console, screen=True, refresh_per_second=30):
+        with Progress(console=console) as progress:
+            layout["body"].update(Align(progress, align="center", vertical="middle"))
+            task1 = progress.add_task("[cyan]Loading configuration...", total=100)
+            for _ in range(100):
+                progress.update(task1, advance=1)
+                sleep(0.005)
+            config = load_config(chosen_path)
+            
+            task2 = progress.add_task("[cyan]Reading CSV data...", total=100)
+            for _ in range(100):
+                progress.update(task2, advance=1)
+                sleep(0.005)
+            students_raw = read_csv_data(config["file_paths"]["input_csv"], config)
+            
+            task3 = progress.add_task("[cyan]Computing weighted grades...", total=100)
+            for _ in range(100):
+                progress.update(task3, advance=1)
+                sleep(0.005)
+            students = compute_weighted_grades(students_raw, config["grade_weights"])
+            
+            task4 = progress.add_task("[cyan]Grouping by sections...", total=100)
+            for _ in range(100):
+                progress.update(task4, advance=1)
+                sleep(0.005)
+            sections = group_students_by_section(students)
+    # Success summary in centered layout
+    summary_lines = [
+        "[good]Configuration loaded[/good]",
+        f"[good]Loaded {len(students)} student records[/good]",
+        "[good]Grades computed[/good]",
+        f"[good]Organized into {len(sections)} sections[/good]",
+    ]
+    success_panel = Panel(Text.from_markup("\n".join(summary_lines)), title="✨ DATA LOADED SUCCESSFULLY ✨", border_style="green", padding=(1, 2))
+    _show_in_layout(success_panel, "Data Loaded", status_text=f"Students: {len(students)}  |  Sections: {len(sections)}  |  Config: {chosen_path}")
     return students, sections, chosen_path
 
 def insert_demo_student(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
@@ -224,11 +329,16 @@ def delete_student_by_id(students: List[Dict[str, Any]], sections: Dict[str, Lis
     student_id = prompt_str("Enter Student ID to delete:", "")
     if not student_id:
         return students, sections
+    confirm = prompt_str(f"Confirm delete {student_id}? [y/N]:", "N").strip().lower()
+    if confirm != "y":
+        console.print("[warn]Cancelled.[/warn]")
+        input("Press Enter to continue...")
+        return students, sections
     if core_delete_student(sections, student_id):
         students = [s for s in students if s.get("student_id") != student_id]
-        console.print(f"[bold green]Deleted student with ID {student_id}[/bold green]")
+        console.print(f"[good]Deleted student with ID {student_id}[/good]")
     else:
-        console.print(f"[bold red]No student found with ID {student_id}[/bold red]")
+        console.print(f"[bad]No student found with ID {student_id}[/bad]")
     input("Press Enter to continue...")
     return students, sections
 
@@ -246,12 +356,12 @@ def animated_title() -> None:
     title_art = """
     ╔═══════════════════════════════════════════════════════════════╗
     ║                                                               ║
-    ║      █████╗  ██████╗ █████╗ ██████╗ ███████╗███╗   ███╗██╗   ║
-    ║     ██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝████╗ ████║██║   ║
-    ║     ███████║██║     ███████║██║  ██║█████╗  ██╔████╔██║██║   ║
-    ║     ██╔══██║██║     ██╔══██║██║  ██║██╔══╝  ██║╚██╔╝██║██║   ║
-    ║     ██║  ██║╚██████╗██║  ██║██████╔╝███████╗██║ ╚═╝ ██║██║   ║
-    ║     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝     ╚═╝╚═╝   ║
+    ║      █████╗  ██████╗ █████╗ ██████╗ ███████╗███╗   ███╗██╗    ║
+    ║     ██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝████╗ ████║██║    ║
+    ║     ███████║██║     ███████║██║  ██║█████╗  ██╔████╔██║██║    ║
+    ║     ██╔══██║██║     ██╔══██║██║  ██║██╔══╝  ██║╚██╔╝██║██║    ║
+    ║     ██║  ██║╚██████╗██║  ██║██████╔╝███████╗██║ ╚═╝ ██║██║    ║
+    ║     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝     ╚═╝╚═╝    ║
     ║                                                               ║
     ║          📊  A C A D E M I C   A N A L Y T I C S  📊          ║
     ║                         L I T E                               ║
@@ -306,8 +416,9 @@ def animated_title() -> None:
 # =====================================
 # Arrow-key menu navigation with levels
 # =====================================
-def arrow_menu(title: str, options: Dict[str, str], level: int = 1) -> str:
+def arrow_menu(title: str, options: Dict[str, str], level: int = 1, status_text: str = "") -> str:
     from rich.align import Align
+    from rich.text import Text
     
     keys = list(options.keys())
     selected = 0
@@ -324,73 +435,75 @@ def arrow_menu(title: str, options: Dict[str, str], level: int = 1) -> str:
         border_color = "#005757"
         icon = "📄"
 
-    while True:
-        console.clear()
-        
-        # Enhanced title panel
-        title_panel = Panel(
-            Align.center(f"{icon}  {title}  {icon}"),
-            style=panel_style,
-            border_style=border_color,
-            padding=(1, 4)
-        )
-        console.print(Align.center(title_panel))
-        console.print()
-        
-        # Options table
+    help_text = "↑/↓ Move  •  Enter Select  •  PgUp/PgDn/Home/End Jump  •  q/Esc Back"
+    header_title = f"{icon}  {title}  {icon}"
+    layout = _build_layout(header_title, help_text, status_text, panel_style=panel_style, border_color=border_color)
+
+    def _make_table() -> Table:
         table = Table(
-            title="[bold cyan]Select an Option[/bold cyan]",
+            title="[app.title]Select an Option[/app.title]",
             style=panel_style,
             show_header=True,
             header_style="bold yellow",
             border_style=border_color,
             expand=False
         )
-        table.add_column("Key", justify="center", style="bold white", width=8)
-        table.add_column("Option", justify="left", width=40)
-        
+        table.add_column("Key", justify="center", style="bold white", width=10)
+        table.add_column("Option", justify="left", width=48)
         for i, (key, desc) in enumerate(options.items()):
             if i == selected:
                 table.add_row(
                     f"▶ {key} ◀",
-                    f"[bold green]{desc}[/bold green]",
+                    f"[good]{desc}[/good]",
                     style="on #1a3a3a"
                 )
             else:
                 table.add_row(f"  {key}  ", desc)
-        
-        console.print(Align.center(table))
-        console.print()
-        
-        # Instructions
-        instructions = Panel(
-            "[dim]Use [bold]↑ ↓[/bold] to navigate  •  Press [bold]Enter[/bold] to select[/dim]",
-            border_style="dim",
-            padding=(0, 2)
-        )
-        console.print(Align.center(instructions))
+        return table
 
-        key = readchar.readkey()
-        if key == readchar.key.UP:
-            selected = (selected - 1) % len(keys)
-        elif key == readchar.key.DOWN:
-            selected = (selected + 1) % len(keys)
-        elif key == readchar.key.ENTER:
-            return keys[selected]
+    with Live(layout, console=console, screen=True, refresh_per_second=30):
+        while True:
+            layout["body"].update(Align(_make_table(), align="center", vertical="middle"))
+            key = readchar.readkey()
+            if key == readchar.key.UP:
+                selected = (selected - 1) % len(keys)
+            elif key == readchar.key.DOWN:
+                selected = (selected + 1) % len(keys)
+            elif key in (getattr(readchar.key, "PAGE_UP", None), getattr(readchar.key, "HOME", None)):
+                selected = 0
+            elif key in (getattr(readchar.key, "PAGE_DOWN", None), getattr(readchar.key, "END", None)):
+                selected = len(keys) - 1
+            elif key == readchar.key.ENTER:
+                return keys[selected]
+            elif key in (getattr(readchar.key, "ESC", "\x1b"), "q", "Q"):
+                last_val = list(options.values())[-1].lower()
+                if last_val == "back":
+                    return keys[-1]
+                return keys[selected]
 
 # =====================================
 # Renderers (Showcase-integrated)
 # =====================================
 def view_overall_roster(students: List[Dict[str, Any]]) -> None:
     console.clear()
-    paginate_students_table(students, base_title="Overall Roster", page_size=10)
+    filt = prompt_str("Filter by name contains (optional):", "")
+    if filt:
+        token = filt.strip().lower()
+        filtered = [
+            s for s in students
+            if token in f"{str(s.get('first_name',''))} {str(s.get('last_name',''))}".lower()
+        ]
+    else:
+        filtered = students
+    paginate_students_table(filtered, base_title="Overall Roster", page_size=10)
 
 def view_overall_distribution(students: List[Dict[str, Any]], config_path: str) -> None:
     console.clear()
     cfg = load_config(config_path)
     dist = calculate_distribution(students, cfg["thresholds"]["grade_letters"])
-    console.print(build_distribution_table(dist, total=len(students), title="Overall Grade Distribution"))
-    input("Press Enter to return...")
+    table = build_distribution_table(dist, total=len(students), title="Overall Grade Distribution")
+    status = _status_text_basic(students, None, config_path)
+    _show_in_layout(table, "Overall Distribution", status_text=status)
 
 def view_section_summary(sections: Dict[str, List[Dict[str, Any]]]) -> None:
     console.clear()
@@ -414,8 +527,64 @@ def view_curve_preview(students: List[Dict[str, Any]]) -> None:
         points = prompt_float("Flat curve points to add (default 5):", 5.0, -100.0, 100.0)
         curved = stats_apply_curve([s.copy() for s in students], method="flat", value=float(points))
     preview = prompt_int("Preview how many students? (default 5):", 5, 1, len(curved))
-    console.print(build_curve_table(curved[:preview], title="Curve Preview"))
-    input("Press Enter to return...")
+    table = build_curve_table(curved[:preview], title="Curve Preview")
+    status = _status_text_basic(students, None, None)
+    _show_in_layout(table, "Curve Preview", status_text=status)
+
+def view_improvement_insights(students: List[Dict[str, Any]]) -> None:
+    console.clear()
+    result = track_midterm_to_final_improvement(students)
+    lines: List[str] = ["[bold]Midterm vs. Final Improvement Analysis:[/bold]"]
+    if result["total_students"] == 0:
+        lines.append("[bad]No midterm and final exam data available to analyze.[/bad]")
+        panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+        status = _status_text_basic(students, None, None)
+        _show_in_layout(panel, "Improvement Insights", status_text=status)
+        return
+    lines.append(f"- Total students analyzed: {result['total_students']}")
+    lines.append(f"- Students who improved: {result['counts']['improved']} ({result['percentages']['improved']:.1f}%)")
+    lines.append(f"- Students who stayed the same: {result['counts']['same']} ({result['percentages']['same']:.1f}%)")
+    lines.append(f"- Students who declined: {result['counts']['declined']} ({result['percentages']['declined']:.1f}%)")
+    if result["avg_improvement"] > 0:
+        lines.append(f"- Average improvement among improvers: {result['avg_improvement']:.1f} points")
+    if result["avg_decline"] > 0 and result["counts"]["declined"] > 0:
+        lines.append(f"- Average decline among decliners: {result['avg_decline']:.1f} points")
+    if result.get("suggestions"):
+        lines.append("\n[bold yellow]SUGGESTIONS:[/bold yellow]")
+        for s in result["suggestions"]:
+            lines.append(f"- {s}")
+    panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+    status = _status_text_basic(students, None, None)
+    _show_in_layout(panel, "Improvement Insights", status_text=status)
+
+def view_attendance_correlation_overall(students: List[Dict[str, Any]]) -> None:
+    console.clear()
+    threshold = prompt_float("Attendance threshold % (default 80):", 80.0, 0.0, 100.0)
+    res = correlate_attendance_and_grades(students, threshold=float(threshold))
+    lines: List[str] = ["[bold]Attendance-Grade Correlation (Overall):[/bold]"]
+    if res["low_count"] == 0 and res["high_count"] == 0:
+        lines.append("[bad]No attendance data available to analyze.[/bad]")
+        panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+        status = _status_text_basic(students, None, None)
+        _show_in_layout(panel, "Attendance Correlation", status_text=status)
+        return
+    lines.append(f"- Attendance Threshold: {res['threshold']:.0f}%")
+    lines.append(f"- Low Attendance Group (<{res['threshold']:.0f}%): {res['low_count']} students")
+    lines.append(f"- High Attendance Group (≥{res['threshold']:.0f}%): {res['high_count']} students")
+    lines.append(f"- Low-attendance avg grade: {res['low_avg_grade']:.1f}%")
+    lines.append(f"- High-attendance avg grade: {res['high_avg_grade']:.1f}%")
+    lines.append(f"- Grade difference: {res['grade_difference']:.1f} points")
+    if res.get("insights"):
+        lines.append("\n[bold]Insights:[/bold]")
+        for i in res["insights"]:
+            lines.append(f"- {i}")
+    if res.get("suggestions"):
+        lines.append("\n[bold yellow]Suggestions:[/bold yellow]")
+        for s in res["suggestions"]:
+            lines.append(f"- {s}")
+    panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+    status = _status_text_basic(students, None, None)
+    _show_in_layout(panel, "Attendance Correlation", status_text=status)
 
 def _select_section(sections: Dict[str, List[Dict[str, Any]]]) -> Optional[str]:
     if not sections:
@@ -424,7 +593,7 @@ def _select_section(sections: Dict[str, List[Dict[str, Any]]]) -> Optional[str]:
         return None
     options = {str(i + 1): sec for i, sec in enumerate(sorted(sections.keys()))}
     options[str(len(options) + 1)] = "Back"
-    choice = arrow_menu("Select Section", options, level=3)
+    choice = arrow_menu("Select Section", options, level=3, status_text=f"Sections: {len(sections)}")
     if choice == str(len(options)):
         return None
     return options.get(choice)
@@ -443,7 +612,7 @@ def sort_section_menu(sections: Dict[str, List[Dict[str, Any]]]) -> None:
         return
     studs = sections.get(section, [])
     sort_opts = {"1": "weighted_grade (desc)", "2": "last_name", "3": "first_name", "4": "Back"}
-    choice = arrow_menu(f"Sort {section}", sort_opts, level=3)
+    choice = arrow_menu(f"Sort {section}", sort_opts, level=3, status_text=f"Section: {section}  |  Students: {len(studs)}")
     if choice == "4":
         return
     if choice == "1":
@@ -465,7 +634,7 @@ def section_top_bottom_menu(sections: Dict[str, List[Dict[str, Any]]]) -> None:
     studs = sections.get(section, [])
     n = prompt_int("N (default 3):", 3, 1, len(studs) if studs else 1)
     opts = {"1": "Top N", "2": "Bottom N", "3": "Back"}
-    choice = arrow_menu(f"Top/Bottom — {section}", opts, level=3)
+    choice = arrow_menu(f"Top/Bottom — {section}", opts, level=3, status_text=f"Section: {section}  |  Students: {len(studs)}")
     if choice == "3":
         return
     if choice == "1":
@@ -485,8 +654,9 @@ def section_distribution(sections: Dict[str, List[Dict[str, Any]]], config_path:
     studs = sections.get(section, [])
     cfg = load_config(config_path)
     dist = calculate_distribution(studs, cfg["thresholds"]["grade_letters"])
-    console.print(build_distribution_table(dist, total=len(studs), title=f"Grade Distribution — {section}"))
-    input("Press Enter to return...")
+    table = build_distribution_table(dist, total=len(studs), title=f"Grade Distribution — {section}")
+    status = f"Section: {section}  |  Students: {len(studs)}"
+    _show_in_layout(table, f"Distribution — {section}", status_text=status)
 
 def section_hardest_topic(sections: Dict[str, List[Dict[str, Any]]]) -> None:
     console.clear()
@@ -495,14 +665,212 @@ def section_hardest_topic(sections: Dict[str, List[Dict[str, Any]]]) -> None:
         return
     studs = sections.get(section, [])
     quiz_avgs, quiz_counts, hardest_quiz, lowest = get_quiz_averages(studs)
-    console.print(build_hardest_topic_table(quiz_avgs, quiz_counts, hardest_quiz, title=f"Hardest Topic — {section}"))
-    input("Press Enter to return...")
+    table = build_hardest_topic_table(quiz_avgs, quiz_counts, hardest_quiz, title=f"Hardest Topic — {section}")
+    status = f"Section: {section}  |  Students: {len(studs)}"
+    _show_in_layout(table, f"Hardest Topic — {section}", status_text=status)
 
 def view_quiz_comparison(sections: Dict[str, List[Dict[str, Any]]]) -> None:
     console.clear()
     avg_by_section, quiz_keys, lowest_per_quiz = get_sections_quiz_averages(sections)
-    console.print(build_quiz_comparison_table(avg_by_section, quiz_keys, lowest_per_quiz, title="Quiz Averages Comparison"))
-    input("Press Enter to return...")
+    table = build_quiz_comparison_table(avg_by_section, quiz_keys, lowest_per_quiz, title="Quiz Averages Comparison")
+    status = f"Sections: {len(sections)}"
+    _show_in_layout(table, "Quiz Averages Comparison", status_text=status)
+
+def section_improvement_insights(sections: Dict[str, List[Dict[str, Any]]]) -> None:
+    console.clear()
+    section = _select_section(sections)
+    if not section:
+        return
+    studs = sections.get(section, [])
+    result = track_midterm_to_final_improvement(studs)
+    lines: List[str] = [f"[bold]Improvement Analysis — {section}[/bold]"]
+    if result["total_students"] == 0:
+        lines.append("[bad]No midterm and final exam data available to analyze.[/bad]")
+        panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+        status = f"Section: {section}  |  Students: {len(studs)}"
+        _show_in_layout(panel, f"Improvement — {section}", status_text=status)
+        return
+    lines.append(f"- Total students analyzed: {result['total_students']}")
+    lines.append(f"- Improved: {result['counts']['improved']} ({result['percentages']['improved']:.1f}%)")
+    lines.append(f"- Same: {result['counts']['same']} ({result['percentages']['same']:.1f}%)")
+    lines.append(f"- Declined: {result['counts']['declined']} ({result['percentages']['declined']:.1f}%)")
+    if result["avg_improvement"] > 0:
+        lines.append(f"- Avg improvement: {result['avg_improvement']:.1f} points")
+    if result["avg_decline"] > 0 and result["counts"]["declined"] > 0:
+        lines.append(f"- Avg decline (decliners): {result['avg_decline']:.1f} points")
+    if result.get("suggestions"):
+        lines.append("\n[bold yellow]Suggestions:[/bold yellow]")
+        for s in result["suggestions"]:
+            lines.append(f"- {s}")
+    panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+    status = f"Section: {section}  |  Students: {len(studs)}"
+    _show_in_layout(panel, f"Improvement — {section}", status_text=status)
+
+def section_attendance_correlation(sections: Dict[str, List[Dict[str, Any]]]) -> None:
+    console.clear()
+    section = _select_section(sections)
+    if not section:
+        return
+    studs = sections.get(section, [])
+    threshold = prompt_float("Attendance threshold % (default 80):", 80.0, 0.0, 100.0)
+    res = correlate_attendance_and_grades(studs, threshold=float(threshold))
+    lines: List[str] = [f"[bold]Attendance-Grade Correlation — {section}[/bold]"]
+    if res["low_count"] == 0 and res["high_count"] == 0:
+        lines.append("[bad]No attendance data available to analyze.[/bad]")
+        panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+        status = f"Section: {section}  |  Students: {len(studs)}"
+        _show_in_layout(panel, f"Attendance — {section}", status_text=status)
+        return
+    lines.append(f"- Attendance Threshold: {res['threshold']:.0f}%")
+    lines.append(f"- Low Attendance Group (<{res['threshold']:.0f}%): {res['low_count']} students")
+    lines.append(f"- High Attendance Group (≥{res['threshold']:.0f}%): {res['high_count']} students")
+    lines.append(f"- Low-attendance avg grade: {res['low_avg_grade']:.1f}%")
+    lines.append(f"- High-attendance avg grade: {res['high_avg_grade']:.1f}%")
+    lines.append(f"- Grade difference: {res['grade_difference']:.1f} points")
+    if res.get("insights"):
+        lines.append("\n[bold]Insights:[/bold]")
+        for i in res["insights"]:
+            lines.append(f"- {i}")
+    if res.get("suggestions"):
+        lines.append("\n[bold yellow]Suggestions:[/bold yellow]")
+        for s in res["suggestions"]:
+            lines.append(f"- {s}")
+    panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+    status = f"Section: {section}  |  Students: {len(studs)}"
+    _show_in_layout(panel, f"Attendance — {section}", status_text=status)
+
+def view_compare_sections_insights(sections: Dict[str, List[Dict[str, Any]]]) -> None:
+    console.clear()
+    res = compare_sections(sections)
+    lines: List[str] = ["[bold]Compare Sections — Text Insights[/bold]"]
+    if not res.get("insights"):
+        lines.append("[bad]No insights available.[/bad]")
+    else:
+        for line in res["insights"]:
+            lines.append(f"- {line}")
+    panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+    status = f"Sections: {len(sections)}"
+    _show_in_layout(panel, "Compare Sections", status_text=status)
+
+# =====================================
+# Section CRUD Management
+# =====================================
+def _prompt_student_fields(existing: Optional[Dict[str, Any]] = None, preselected_section: Optional[str] = None) -> Dict[str, Any]:
+    existing = existing or {}
+    student_id = prompt_str(f"Student ID ({existing.get('student_id','')}):", existing.get("student_id", "") or "")
+    first_name = prompt_str(f"First Name ({existing.get('first_name','')}):", existing.get("first_name", "") or "")
+    middle_name = prompt_str(f"Middle Name ({existing.get('middle_name','')}):", existing.get("middle_name", "") or "")
+    last_name = prompt_str(f"Last Name ({existing.get('last_name','')}):", existing.get("last_name", "") or "")
+    section = preselected_section if preselected_section else prompt_str(f"Section ({existing.get('section','')}):", existing.get("section", "") or "")
+    # Scores
+    q1 = prompt_int(f"Quiz1 ({existing.get('quiz1','')}):", int(existing.get("quiz1", 0)))
+    q2 = prompt_int(f"Quiz2 ({existing.get('quiz2','')}):", int(existing.get("quiz2", 0)))
+    q3 = prompt_int(f"Quiz3 ({existing.get('quiz3','')}):", int(existing.get("quiz3", 0)))
+    q4 = prompt_int(f"Quiz4 ({existing.get('quiz4','')}):", int(existing.get("quiz4", 0)))
+    q5 = prompt_int(f"Quiz5 ({existing.get('quiz5','')}):", int(existing.get("quiz5", 0)))
+    midterm = prompt_int(f"Midterm ({existing.get('midterm','')}):", int(existing.get("midterm", 0)))
+    final = prompt_int(f"Final ({existing.get('final','')}):", int(existing.get("final", 0)))
+    attendance = prompt_float(f"Attendance % ({existing.get('attendance_percent','')}):", float(existing.get("attendance_percent", 0.0)))
+    return {
+        "student_id": student_id,
+        "first_name": first_name,
+        "middle_name": middle_name,
+        "last_name": last_name,
+        "section": section,
+        "quiz1": q1, "quiz2": q2, "quiz3": q3, "quiz4": q4, "quiz5": q5,
+        "midterm": midterm, "final": final,
+        "attendance_percent": attendance,
+    }
+
+def _find_student_by_id(seq: List[Dict[str, Any]], student_id: str) -> Optional[Dict[str, Any]]:
+    for s in seq:
+        if str(s.get("student_id", "")).lower() == student_id.lower():
+            return s
+    return None
+
+def _replace_in_students_list(students: List[Dict[str, Any]], updated: Dict[str, Any]) -> List[Dict[str, Any]]:
+    new_list: List[Dict[str, Any]] = []
+    target_id = str(updated.get("student_id", ""))
+    for s in students:
+        if str(s.get("student_id", "")) == target_id:
+            new_list.append(updated)
+        else:
+            new_list.append(s)
+    return new_list
+
+def add_student_to_section(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], section: str, config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
+    cfg = load_config(config_path)
+    base = _prompt_student_fields(preselected_section=section)
+    base = compute_weighted_grades([base], cfg["grade_weights"])[0]
+    core_insert_student(sections, base)
+    students.append(base)
+    _show_in_layout(Panel(Text.from_markup(f"[good]Inserted {base.get('first_name','')} {base.get('last_name','')} into {section}[/good]"), border_style="green"),
+                    "Insert Student", status_text=f"Section: {section}")
+    return students, sections
+
+def edit_student_in_section(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], section: str, config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
+    cfg = load_config(config_path)
+    sid = prompt_str("Enter Student ID to edit:", "")
+    if not sid:
+        return students, sections
+    target = _find_student_by_id(sections.get(section, []), sid)
+    if not target:
+        _show_in_layout(Panel(Text.from_markup(f"[bad]No student with ID {sid} in {section}[/bad]"), border_style="red"), "Edit Student", status_text=f"Section: {section}")
+        return students, sections
+    updated = _prompt_student_fields(existing=target, preselected_section=section)
+    updated = compute_weighted_grades([updated], cfg["grade_weights"])[0]
+    # Update in sections list
+    for i, s in enumerate(sections[section]):
+        if str(s.get("student_id","")) == sid:
+            sections[section][i] = updated
+            break
+    # Update in global students list
+    students = _replace_in_students_list(students, updated)
+    _show_in_layout(Panel(Text.from_markup(f"[good]Updated {updated.get('first_name','')} {updated.get('last_name','')}[/good]"), border_style="green"),
+                    "Edit Student", status_text=f"Section: {section}")
+    return students, sections
+
+def delete_student_in_section(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], section: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
+    sid = prompt_str("Enter Student ID to delete:", "")
+    if not sid:
+        return students, sections
+    if not _find_student_by_id(sections.get(section, []), sid):
+        _show_in_layout(Panel(Text.from_markup(f"[bad]No student with ID {sid} in {section}[/bad]"), border_style="red"),
+                        "Delete Student", status_text=f"Section: {section}")
+        return students, sections
+    confirm = prompt_str(f"Confirm delete {sid} from {section}? [y/N]:", "N").strip().lower()
+    if confirm != "y":
+        _show_in_layout(Panel(Text.from_markup("[warn]Cancelled.[/warn]"), border_style="yellow"), "Delete Student", status_text=f"Section: {section}")
+        return students, sections
+    if core_delete_student(sections, sid):
+        students = [s for s in students if str(s.get("student_id","")) != sid]
+        _show_in_layout(Panel(Text.from_markup(f"[good]Deleted {sid}[/good]"), border_style="green"), "Delete Student", status_text=f"Section: {section}")
+    else:
+        _show_in_layout(Panel(Text.from_markup(f"[bad]Failed to delete {sid}[/bad]"), border_style="red"), "Delete Student", status_text=f"Section: {section}")
+    return students, sections
+
+def section_manage_crud(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str]:
+    console.clear()
+    section = _select_section(sections)
+    if not section:
+        return students, sections, config_path
+    opts = {
+        "1": "Add Student",
+        "2": "Edit Student",
+        "3": "Delete Student",
+        "4": "Back"
+    }
+    while True:
+        choice = arrow_menu(f"Manage Section — {section}", opts, level=3, status_text=f"Section: {section}  |  Students: {len(sections.get(section, []))}")
+        if choice == "4":
+            break
+        elif choice == "1":
+            students, sections = add_student_to_section(students, sections, section, config_path)
+        elif choice == "2":
+            students, sections = edit_student_in_section(students, sections, section, config_path)
+        elif choice == "3":
+            students, sections = delete_student_in_section(students, sections, section)
+    return students, sections, config_path
 
 # =====================================
 # Lookup Student Submenu
@@ -516,7 +884,7 @@ def lookup_student(students: List[Dict[str, Any]]) -> None:
         "5": "Back"
     }
     while True:
-        choice = arrow_menu("Lookup Individual Student", options, level=3)
+        choice = arrow_menu("Lookup Individual Student", options, level=3, status_text=f"Students: {len(students)}")
         if choice == "5":
             break
         elif choice == "1":
@@ -583,35 +951,35 @@ def plot_overall_histograms(students: List[Dict[str, Any]]) -> None:
         "6": "Generate All Plots",
         "7": "Back"
     }
-    choice = arrow_menu("Overall Histograms", options, level=3)
+    choice = arrow_menu("Overall Histograms", options, level=3, status_text=f"Students: {len(students)}")
     
     has_display = _is_display_available()
     display_msg = " (and displayed)" if has_display else ""
     
     if choice == "1":
         file_path = plot_grade_histogram(students, "weighted_grade", "Overall Weighted Grade Distribution")
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, "Weighted Grade Distribution", status_text=f"Students: {len(students)}")
     elif choice == "2":
         file_path = plot_combined_histogram(students, ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5"], "Quiz Scores Distribution")
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, "Quiz Scores Distribution", status_text=f"Students: {len(students)}")
     elif choice == "3":
         file_path = plot_combined_histogram(students, ["midterm", "final"], "Midterm vs Final Exam Distribution")
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, "Midterm vs Final", status_text=f"Students: {len(students)}")
     elif choice == "4":
         file_path = plot_grade_histogram(students, "attendance_percent", "Attendance Distribution")
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, "Attendance Distribution", status_text=f"Students: {len(students)}")
     elif choice == "5":
         file_path = plot_combined_histogram(
             students,
             ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade"],
             "All Scores including Weighted Grade"
         )
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, "All Scores Combined", status_text=f"Students: {len(students)}")
     elif choice == "6":
         console.print("[bold yellow]Generating all plots...[/bold yellow]")
         f1 = plot_grade_histogram(students, "weighted_grade", "Overall Weighted Grade Distribution")
@@ -623,11 +991,17 @@ def plot_overall_histograms(students: List[Dict[str, Any]]) -> None:
             ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade"],
             "All Scores including Weighted Grade"
         )
+        lines = [
+            f"[good]Saved:[/good] {f1}",
+            f"[good]Saved:[/good] {f2}",
+            f"[good]Saved:[/good] {f3}",
+            f"[good]Saved:[/good] {f4}",
+            f"[good]Saved:[/good] {f5}",
+        ]
         if has_display:
-            console.print(f"[bold green]All plots saved to output/plots/ and displayed![/bold green]")
-        else:
-            console.print(f"[bold green]All plots saved to output/plots/ (check folder to view)[/bold green]")
-        input("Press Enter to continue...")
+            lines.append("[good]All plots displayed (if GUI available).[/good]")
+        panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+        _show_in_layout(panel, "Generated All Plots", status_text=f"Students: {len(students)}")
 
 def plot_section_histograms(sections: Dict[str, List[Dict[str, Any]]]) -> None:
     console.clear()
@@ -646,35 +1020,35 @@ def plot_section_histograms(sections: Dict[str, List[Dict[str, Any]]]) -> None:
         "6": "Generate All Plots",
         "7": "Back"
     }
-    choice = arrow_menu(f"Section Histograms - {section}", options, level=3)
+    choice = arrow_menu(f"Section Histograms - {section}", options, level=3, status_text=f"Section: {section}  |  Students: {len(studs)}")
     
     has_display = _is_display_available()
     display_msg = " (and displayed)" if has_display else ""
     
     if choice == "1":
         file_path = plot_grade_histogram(studs, "weighted_grade", f"Weighted Grade Distribution - {section}")
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, f"Weighted Grade — {section}", status_text=f"Section: {section}")
     elif choice == "2":
         file_path = plot_combined_histogram(studs, ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5"], f"Quiz Scores Distribution - {section}")
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, f"Quiz Scores — {section}", status_text=f"Section: {section}")
     elif choice == "3":
         file_path = plot_combined_histogram(studs, ["midterm", "final"], f"Midterm vs Final - {section}")
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, f"Midterm vs Final — {section}", status_text=f"Section: {section}")
     elif choice == "4":
         file_path = plot_grade_histogram(studs, "attendance_percent", f"Attendance Distribution - {section}")
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, f"Attendance — {section}", status_text=f"Section: {section}")
     elif choice == "5":
         file_path = plot_combined_histogram(
             studs,
             ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade"],
             f"All Scores - {section}"
         )
-        console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+        _show_in_layout(msg, f"All Scores — {section}", status_text=f"Section: {section}")
     elif choice == "6":
         console.print("[bold yellow]Generating all plots...[/bold yellow]")
         plot_grade_histogram(studs, "weighted_grade", f"Weighted Grade Distribution - {section}")
@@ -686,11 +1060,12 @@ def plot_section_histograms(sections: Dict[str, List[Dict[str, Any]]]) -> None:
             ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade"],
             f"All Scores - {section}"
         )
-        if has_display:
-            console.print(f"[bold green]All plots saved to output/plots/ and displayed![/bold green]")
-        else:
-            console.print(f"[bold green]All plots saved to output/plots/ (check folder to view)[/bold green]")
-        input("Press Enter to continue...")
+        lines = [
+            "[good]All plots saved to output/plots/[/good]",
+            ("[good]Displayed as well.[/good]" if has_display else "[warn]No display detected; files saved only.[/warn]"),
+        ]
+        panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
+        _show_in_layout(panel, f"Generated All Plots — {section}", status_text=f"Section: {section}")
 
 def plot_custom_histogram(students: List[Dict[str, Any]]) -> None:
     console.clear()
@@ -699,16 +1074,16 @@ def plot_custom_histogram(students: List[Dict[str, Any]]) -> None:
     key = prompt_str("Enter column name:", "weighted_grade")
     
     if key not in ["quiz1", "quiz2", "quiz3", "quiz4", "quiz5", "midterm", "final", "weighted_grade", "attendance_percent"]:
-        console.print(f"[bold red]Invalid column: {key}[/bold red]")
-        input("Press Enter to continue...")
+        msg = Panel(Text.from_markup(f"[bad]Invalid column: {key}[/bad]"), border_style="cyan")
+        _show_in_layout(msg, "Custom Histogram", status_text=f"Students: {len(students)}")
         return
     
     has_display = _is_display_available()
     display_msg = " (and displayed)" if has_display else ""
     
     file_path = plot_grade_histogram(students, key)
-    console.print(f"[bold green]Plot saved to: {file_path}{display_msg}[/bold green]")
-    input("Press Enter to continue...")
+    msg = Panel(Text.from_markup(f"[good]Plot saved to: {file_path}{display_msg}[/good]"), border_style="cyan")
+    _show_in_layout(msg, f"Custom Histogram — {key}", status_text=f"Students: {len(students)}")
 
 # =====================================
 # Submenus
@@ -721,11 +1096,14 @@ def course_dashboard(students: List[Dict[str, Any]], sections: Dict[str, List[Di
         "1.d": "View Overall Ranking (Top N)",
         "1.e": "Curve Preview",
         "1.f": "Overall Histograms",
-        "1.g": "Back"
+        "1.g": "Improvement Insights (Midterm→Final)",
+        "1.h": "Attendance-Grade Correlation (Overall)",
+        "1.i": "Back"
     }
     while True:
-        choice = arrow_menu("Course Dashboard", options, level=2)
-        if choice == "1.g":
+        status = _status_text_basic(students, sections, config_path)
+        choice = arrow_menu("Course Dashboard", options, level=2, status_text=status)
+        if choice == "1.i":
             break
         elif choice == "1.a":
             view_overall_roster(students)
@@ -739,6 +1117,10 @@ def course_dashboard(students: List[Dict[str, Any]], sections: Dict[str, List[Di
             view_curve_preview(students)
         elif choice == "1.f":
             plot_overall_histograms(students)
+        elif choice == "1.g":
+            view_improvement_insights(students)
+        elif choice == "1.h":
+            view_attendance_correlation_overall(students)
     return students, sections, config_path
 
 def section_analytics(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str]:
@@ -749,12 +1131,17 @@ def section_analytics(students: List[Dict[str, Any]], sections: Dict[str, List[D
         "2.d": "Section Grade Distribution",
         "2.e": "Hardest Topic per Section",
         "2.f": "Quiz Averages Comparison (All Sections)",
-        "2.g": "Section Histograms",
-        "2.h": "Back"
+        "2.g": "Compare Sections (Text Insights)",
+        "2.h": "Section Improvement Insights",
+        "2.i": "Section Attendance Correlation",
+        "2.j": "Section Histograms",
+        "2.k": "Manage Section (CRUD)",
+        "2.l": "Back"
     }
     while True:
-        choice = arrow_menu("Section Analytics", options, level=2)
-        if choice == "2.h":
+        status = _status_text_basic(students, sections, config_path)
+        choice = arrow_menu("Section Analytics", options, level=2, status_text=status)
+        if choice == "2.l":
             break
         elif choice == "2.a":
             view_section_table(sections)
@@ -769,7 +1156,15 @@ def section_analytics(students: List[Dict[str, Any]], sections: Dict[str, List[D
         elif choice == "2.f":
             view_quiz_comparison(sections)
         elif choice == "2.g":
+            view_compare_sections_insights(sections)
+        elif choice == "2.h":
+            section_improvement_insights(sections)
+        elif choice == "2.i":
+            section_attendance_correlation(sections)
+        elif choice == "2.j":
             plot_section_histograms(sections)
+        elif choice == "2.k":
+            students, sections, config_path = section_manage_crud(students, sections, config_path)
     return students, sections, config_path
 
 def student_reports(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str]:
@@ -780,7 +1175,8 @@ def student_reports(students: List[Dict[str, Any]], sections: Dict[str, List[Dic
         "3.d": "Back"
     }
     while True:
-        choice = arrow_menu("Student Reports", options, level=2)
+        status = _status_text_basic(students, sections, config_path)
+        choice = arrow_menu("Student Reports", options, level=2, status_text=status)
         if choice == "3.d":
             break
         elif choice == "3.a":
@@ -810,7 +1206,8 @@ def tools_utilities(students: List[Dict[str, Any]], sections: Dict[str, List[Dic
         "4.e": "Back"
     }
     while True:
-        choice = arrow_menu("Tools & Utilities", options, level=2)
+        status = _status_text_basic(students, sections, config_path)
+        choice = arrow_menu("Tools & Utilities", options, level=2, status_text=status)
         if choice == "4.e":
             break
         elif choice == "4.a":
@@ -847,7 +1244,8 @@ def run_menu() -> None:
     config_path: str = "config.json"
     students, sections, config_path = load_or_reload_data(config_path)
     while True:
-        choice = arrow_menu("Main Menu", options, level=1)
+        status = _status_text_basic(students, sections, config_path)
+        choice = arrow_menu("Main Menu", options, level=1, status_text=status)
         if choice == "1":
             students, sections, config_path = course_dashboard(students, sections, config_path)
         elif choice == "2":
