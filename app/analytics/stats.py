@@ -1,4 +1,11 @@
 # Holds avg, median, weighted_grade
+"""Statistics utilities for computing grades, distributions, and percentiles.
+
+Authors:
+- Jeoffrey Isaiah Hernandez
+- John Christian Linaban
+"""
+
 import math
 from typing import Any, Dict, List, Optional
 

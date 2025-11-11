@@ -1,4 +1,11 @@
 # Holds outliers, improvements, comparisons
+"""Analytics insights for outliers, improvements, correlations, and comparisons.
+
+Authors:
+- John Christian Linaban
+- John Miles Varca
+"""
+
 from typing import Any, Dict, List
 from rich.console import Console
 from app.analytics.stats import calculate_percentile

@@ -1,4 +1,10 @@
 # Holds the 'export to CSV' logic
+"""CSV export utilities.
+
+Authors:
+- Daniel Go Micompal
+"""
+
 import csv
 from typing import Any, Dict, List
 

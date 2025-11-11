@@ -1,3 +1,9 @@
+"""Console showcase that runs the analytics pipeline and displays results.
+
+Authors:
+- John Christian Linaban
+"""
+
 from typing import Any, Dict, List
 from rich.console import Console
 from rich.table import Table

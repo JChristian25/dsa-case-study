@@ -1,3 +1,10 @@
+"""Rich TUI CLI for navigating analytics dashboards and utilities.
+
+Authors:
+- Kirsten Licup
+- John Christian Linaban
+"""
+
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel

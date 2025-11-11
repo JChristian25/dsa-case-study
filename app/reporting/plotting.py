@@ -1,4 +1,11 @@
 # Holds the Matplotlib histogram logic
+"""Matplotlib plotting helpers for grade histograms and combined plots.
+
+Authors:
+- Mary Margarette Viray
+- John Christian Linaban
+"""
+
 from typing import Any, Dict, List
 import matplotlib
 import os

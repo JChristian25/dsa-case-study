@@ -1,4 +1,21 @@
 # Holds ingest, validation, config loading
+"""Core utilities for ingesting data, validation, and configuration loading.
+
+Authors:
+- John Christian Linaban
+
+This module provides:
+- load_config(filepath): Read JSON configuration and return it as a dict.
+- read_csv_data(filepath, config): Read and validate CSV rows based on config;
+  trims strings; coerces numeric fields to floats in the 0–100 range or sets None;
+  skips rows with missing required columns.
+- group_students_by_section(students): Build a mapping of section -> list of students.
+- insert_student(sections, student): Insert a student into the proper section.
+- delete_student(sections, student_id): Remove a student by ID from its section.
+- sort_students(students, sort_by, reverse=False): Return a sorted copy of students
+  on text fields (e.g., last_name) or numeric fields (e.g., weighted_grade).
+"""
+
 import csv
 import json
 from typing import Any, Dict, List

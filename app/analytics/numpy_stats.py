@@ -1,3 +1,9 @@
+"""NumPy implementation of weighted grades and conversion utilities.
+
+Authors:
+- John Christian Linaban
+"""
+
 import numpy as np
 from typing import Any, Dict, List, Sequence
 
