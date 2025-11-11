@@ -1,5 +1,6 @@
 from typing import Any, Dict, List
 from rich.console import Console
+from rich.table import Table
 
 from app.core import (
     load_config,
@@ -16,12 +17,14 @@ from app.analytics.stats import (
     get_bottom_n_students,
     get_average_grade,
     apply_grade_curve,
+    calculate_percentile,
 )
 from app.analytics.insights import (
     get_quiz_averages,
     get_sections_quiz_averages,
     track_midterm_to_final_improvement,
     get_at_risk_students,
+    find_outliers,
 )
 from app.reporting.tables import (
     build_student_table,
@@ -190,13 +193,24 @@ def run_showcase(config_path: str = "config.json") -> None:
     rows = [dict(rank=i + 1, **s) for i, s in enumerate(top_students_overall)]
     console.print(build_rank_table(rows, title=f"Top {N} — Overall"))
 
-    # == PERCENTILES == (to add)
-    console.rule("PERCENTILES (to add)")
-    console.print("[dim]Percentile calculations not yet implemented.[/dim]")
+    # == PERCENTILES ==
+    console.rule("PERCENTILES")
+    pct_table = Table(title="Percentiles (Overall)")
+    pct_table.add_column("Percentile", justify="center")
+    pct_table.add_column("Weighted Grade", justify="right")
+    for p in [25, 50, 75, 90]:
+        val = calculate_percentile(students, p)
+        display = f"{val:.2f}%" if val is not None else "N/A"
+        pct_table.add_row(f"{p}th", display)
+    console.print(pct_table)
 
-    # == OUTLIERS == (to add)
-    console.rule("OUTLIERS (to add)")
-    console.print("[dim]Outlier detection not yet implemented.[/dim]")
+    # == OUTLIERS ==
+    console.rule("OUTLIERS")
+    outliers = find_outliers(students)
+    if outliers:
+        console.print(build_student_table(outliers, title="Outliers (IQR Method)"))
+    else:
+        console.print("[dim]No outliers detected.[/dim]")
 
     # == IMPROVEMENT INSIGHTS == (to add)
     console.rule("IMPROVEMENT INSIGHTS")

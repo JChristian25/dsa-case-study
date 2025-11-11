@@ -11,7 +11,10 @@ def load_config(filepath: str) -> Dict[str, Any]:
 def read_csv_data(filepath: str, config: Dict[str, Any]) -> List[Dict[str, Any]]:
     records = []
     required_columns = config.get("columns", {}).get("required", [])
-    numeric_columns = config.get("columns", {}).get("numeric", [])
+    numeric_columns = list(config.get("columns", {}).get("numeric", []))
+    for _auto_numeric_field in ["midterm", "final", "attendance_percent"]:
+        if _auto_numeric_field not in numeric_columns:
+            numeric_columns.append(_auto_numeric_field)
 
     with open(filepath, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
