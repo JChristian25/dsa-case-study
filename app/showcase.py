@@ -21,6 +21,7 @@ from app.analytics.insights import (
     get_quiz_averages,
     get_sections_quiz_averages,
     track_midterm_to_final_improvement,
+    get_at_risk_students,
 )
 from app.reporting.tables import (
     build_student_table,
@@ -229,8 +230,20 @@ def run_showcase(config_path: str = "config.json") -> None:
             )
 
     # == AT-RISK LIST/EXPORT == (to add)
-    console.rule("AT-RISK LIST/EXPORT (to add)")
-    console.print("[dim]At-risk list and export not yet implemented.[/dim]")
+    console.rule("AT-RISK LIST/EXPORT")
+    cutoff = config["thresholds"]["at_risk_cutoff"]
+    at_risk = get_at_risk_students(students, float(cutoff))
+    console.print(
+        build_student_table(
+            at_risk,
+            title=f"At-Risk Students (cutoff {cutoff})"
+        )
+    )
+    if at_risk:
+        export_to_csv(
+            at_risk,
+            f"{config['file_paths']['output_dir']}at_risk_report.csv",
+        )
 
     # == PLOTS == (to add)
     console.rule("PLOTS")

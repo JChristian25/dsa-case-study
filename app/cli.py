@@ -36,6 +36,7 @@ from app.analytics.insights import (
     track_midterm_to_final_improvement,
     correlate_attendance_and_grades,
     compare_sections,
+    get_at_risk_students,
 )
 from app.reporting.tables import (
     build_student_table,
@@ -1171,18 +1172,19 @@ def student_reports(students: List[Dict[str, Any]], sections: Dict[str, List[Dic
     options = {
         "3.a": "View 'At-Risk' Student List",
         "3.b": "Export Section Reports to CSV",
-        "3.c": "Look Up Individual Student",
-        "3.d": "Back"
+        "3.c": "Export At-Risk per Section to CSV",
+        "3.d": "Look Up Individual Student",
+        "3.e": "Back"
     }
     while True:
         status = _status_text_basic(students, sections, config_path)
         choice = arrow_menu("Student Reports", options, level=2, status_text=status)
-        if choice == "3.d":
+        if choice == "3.e":
             break
         elif choice == "3.a":
             cfg = load_config(config_path)
             cutoff = cfg["thresholds"]["at_risk_cutoff"]
-            at_risk = [s for s in students if isinstance(s.get("weighted_grade"), (int, float)) and s["weighted_grade"] < float(cutoff)]
+            at_risk = get_at_risk_students(students, float(cutoff))
             paginate_students_table(at_risk, base_title=f"At-Risk Students (cutoff {cutoff})", page_size=10)
         elif choice == "3.b":
             cfg = load_config(config_path)
@@ -1194,6 +1196,25 @@ def student_reports(students: List[Dict[str, Any]], sections: Dict[str, List[Dic
             console.print("[bold green]Section reports exported.[/bold green]")
             input("Press Enter to return...")
         elif choice == "3.c":
+            cfg = load_config(config_path)
+            out_dir = cfg["file_paths"]["output_dir"]
+            cutoff = cfg["thresholds"]["at_risk_cutoff"]
+            os.makedirs(out_dir, exist_ok=True)
+            exported = 0
+            for section_name, section_data in sections.items():
+                if not section_data:
+                    continue
+                at_risk = get_at_risk_students(section_data, float(cutoff))
+                if not at_risk:
+                    continue
+                export_to_csv(at_risk, os.path.join(out_dir, f"section_{section_name}_at_risk.csv"))
+                exported += 1
+            if exported > 0:
+                console.print(f"[bold green]Exported at-risk reports for {exported} section(s).[/bold green]")
+            else:
+                console.print("[bold yellow]No at-risk students found in any section. Nothing exported.[/bold yellow]")
+            input("Press Enter to return...")
+        elif choice == "3.d":
             lookup_student(students)
     return students, sections, config_path
 
