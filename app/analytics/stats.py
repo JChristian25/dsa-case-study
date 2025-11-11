@@ -61,7 +61,27 @@ def calculate_distribution(students: List[Dict[str, Any]], thresholds: Dict[str,
             grade_eval_counter['-D'] += 1
     return grade_eval_counter
 
-def calculate_percentile(students: List[Dict[str, Any]], percentile: int) -> float | None:
+def calculate_percentile(students: List[Dict[str, Any]], percentile: int) -> float:
+    
+    grades = [
+        s['weighted_grade'] for s in students
+        if s.get('weighted_grade') is not None
+    ]
+    if not grades:
+        return None
+    
+    sorted_grades = sorted(grades)
+
+    N = len(sorted_grades)
+
+    P = n/N * 100
+    n = (P/100) * N
+    index = n - 1
+    index = math.ceil((percentile/100)*N) - 1
+
+    return sorted_grades[index]
+    
+def apply_grade_curve(students: List[Dict[str, Any]], method: str = "flat", value: float = 0) -> List[Dict[str, Any]]:
     pass
 
 def _get_grade(student: Dict[str, Any]) -> float:
