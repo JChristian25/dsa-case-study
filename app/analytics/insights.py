@@ -1,9 +1,28 @@
 # Holds outliers, improvements, comparisons
 from typing import Any, Dict, List
 from rich.console import Console
+from stats import calculate_percentile
 
 def find_outliers(students: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    pass
+    Q1 = calculate_percentile(students, 25)
+    Q3 = calculate_percentile(students, 75)
+
+    IQR = Q3 - Q1
+
+    lower_fence = Q1 - (1.5 * IQR)
+    upper_fence = Q3 + (1.5 * IQR)
+
+    outliers = [
+        s for s in students
+        if s['weighted_grade'] < lower_fence 
+        or s['weighted_grade'] > upper_fence
+        
+    ]
+
+    return outliers
+    
+
+
 
 def generate_improvement_insights(students: List[Dict[str, Any]]) -> List[str]:
     pass
