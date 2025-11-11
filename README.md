@@ -35,6 +35,18 @@
 </div>
 
 <div align="center">
+  <img src="ss_one.png" alt="Splash Screen" width="45%"/>
+  <img src="ss_two.png" alt="Main Menu" width="45%"/>
+</div>
+<div align="center">
+  <img src="ss_three.png" alt="Course Dashboard" width="45%"/>
+  <img src="ss_four.png" alt="Section Analytics" width="45%"/>
+</div>
+<div align="center">
+  <img src="ss_five.png" alt="Student Report" width="45%"/>
+</div>
+
+<div align="center">
   <h2 id="getting-started">🚀 Getting Started</h2>
   
   <p>
