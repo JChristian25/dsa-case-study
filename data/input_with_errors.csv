@@ -1,5 +1,0 @@
-student_id,last_name,first_name,section,quiz1,quiz2,quiz3,quiz4,quiz5,midterm,final,attendance_percent
-,MissingID,Test,BSIT 2-1,80,85,90,88,92,87,90,95
-SERR1,NoSection,Test,,88,90,85,92,89,91,94,95
-SERR2,NonNumeric,Quiz,BSIT 2-2,88,NA,85,92,89,91,94,95
-SERR3,OutOfRange,Score,BSIT 2-3,105,90,85,92,89,91,94,95

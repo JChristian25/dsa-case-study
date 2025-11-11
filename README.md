@@ -1,7 +1,7 @@
 <div id="top" align="center">
   <img src="Polytechnic_University_of_the_Philippines_Quezon_City_Logo.png" alt="PUP QC Logo" width="150"/>
   
-  # Academic Analytics Lite
+  # Academi
   *A powerful Python-based academic performance analysis system*  
   *that transforms raw student data into actionable insights*
 
@@ -29,7 +29,7 @@
 <h2 id="about" style="text-align:center;">📖 About The Project</h2>
 
 <div align="justified">
-<p>This repository showcases a comprehensive academic analytics solution developed as a case study for <strong>Data Structures & Algorithms</strong> course at Polytechnic University of the Philippines – Quezon City. <strong>Academic Analytics Lite</strong> demonstrates the practical application of advanced data structures, statistical algorithms, and software engineering best practices to solve real-world educational analytics challenges.</p>
+<p>This repository showcases a comprehensive academic analytics solution developed as a case study for <strong>Data Structures & Algorithms</strong> course at Polytechnic University of the Philippines – Quezon City. <strong>Academi</strong> demonstrates the practical application of advanced data structures, statistical algorithms, and software engineering best practices to solve real-world educational analytics challenges.</p>
 
 <p>The system ingests student CSV data, computes weighted grades using configurable formulas, groups students by section, surfaces deep insights (grade distributions, rankings, quiz difficulty analysis), and exports comprehensive per-section reports—all through an elegant, interactive Rich-powered CLI or automated showcase mode.</p>
 </div>
@@ -462,7 +462,7 @@ python main.py --cli</code></pre>
 <details>
   <summary><span style="font-size: 20px; font-weight:700;">📂 Project Structure</span></summary>
 
-<pre><code>📁 Academic Analytics Lite/
+<pre><code>📁 Academi/
 ├── 📄 main.py                      # Application entry point
 ├── 📄 config.json                  # Configuration file
 ├── 📄 requirements.txt             # Python dependencies
@@ -626,7 +626,7 @@ The system is highly configurable through `config.json`:
 
 <pre><code>
 ╔═══════════════════════════════════════════════════════════╗
-║           ACADEMIC ANALYTICS LITE - MAIN MENU             ║
+║           ACADEMI - MAIN MENU             ║
 ╠═══════════════════════════════════════════════════════════╣
 ║  1. 📊 Course Dashboard                                   ║
 ║     → Overall Roster, Rankings, Grade Distributions       ║

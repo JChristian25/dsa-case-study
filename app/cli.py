@@ -378,8 +378,8 @@ def animated_title() -> None:
     ║     ██║  ██║╚██████╗██║  ██║██████╔╝███████╗██║ ╚═╝ ██║██║    ║
     ║     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝     ╚═╝╚═╝    ║
     ║                                                               ║
-    ║          📊  A C A D E M I C   A N A L Y T I C S  📊          ║
-    ║                         L I T E                               ║
+    ║          📊         A C A D E M I         📊          ║
+    ║                                                               ║
     ║                                                               ║
     ╚═══════════════════════════════════════════════════════════════╝
     """
@@ -1347,7 +1347,7 @@ def run_menu() -> None:
             
             console.clear()
             final_goodbye = Panel(
-                Align.center(Text("✨ Session Ended Successfully ✨\n\nThank you for using Academic Analytics Lite!", style="bold green")),
+                Align.center(Text("✨ Session Ended Successfully ✨\n\nThank you for using Academi!", style="bold green")),
                 border_style="green",
                 padding=(2, 4)
             )

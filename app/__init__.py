@@ -1,4 +1,4 @@
-"""Academic Analytics Lite application package.
+"""Academi application package.
 
 Authors:
 - See submodules for contributors
