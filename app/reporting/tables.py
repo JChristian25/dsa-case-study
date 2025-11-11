@@ -6,26 +6,9 @@ from rich import box
 def _quiz_keys() -> List[str]:
     return [f"quiz{i}" for i in range(1, 6)]
 
-
 def _format_cell_value(value: Any) -> str:
     """Format cell values; show literal 'None' (dim) for missing."""
     return "[dim]None[/dim]" if value is None else f"{value}"
-
-def _styled_table(title: str, caption: str | None = None) -> Table:
-    t = Table(
-        title=title,
-        header_style="bold cyan",
-        title_style="bold cyan",
-        border_style="cyan",
-        box=box.ROUNDED,          # rounded corners
-        highlight=True,           # highlight changed cells/selections
-        row_styles=["", "dim"],   # zebra striping
-        expand=True,              # use full terminal width
-    )
-    if caption:
-        t.caption = caption
-        t.caption_style = "dim"
-    return t
 
 def _color_for_grade(v: float) -> str:
     """Color mapping for 0-100 grades."""
