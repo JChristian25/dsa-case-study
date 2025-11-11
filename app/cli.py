@@ -14,7 +14,9 @@ from rich.text import Text
 from rich.theme import Theme
 from rich.layout import Layout
 from rich.live import Live
+from rich.columns import Columns
 from time import sleep
+import time
 import sys
 import readchar
 import csv
@@ -37,6 +39,9 @@ from app.analytics.stats import (
     get_bottom_n_students,
     get_average_grade,
     apply_grade_curve as stats_apply_curve,
+)
+from app.analytics.numpy_stats import (
+    compute_weighted_grades_numpy,
 )
 from app.analytics.insights import (
     get_quiz_averages,
