@@ -1,3 +1,9 @@
+"""Tests comparing NumPy-based and pure-Python weighted grade computations.
+
+Authors:
+- John Christian Linaban
+"""
+
 import numpy as np
 import time
 

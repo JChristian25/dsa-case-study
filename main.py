@@ -1,3 +1,9 @@
+"""Main entry point to run the CLI or showcase.
+
+Authors:
+- See submodules for contributors
+"""
+
 from app.cli import run_menu
 from app.showcase import run_showcase
 

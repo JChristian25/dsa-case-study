@@ -1,25 +1,28 @@
 # Holds outliers, improvements, comparisons
+"""Analytics insights for outliers, improvements, correlations, and comparisons.
+
+Authors:
+- John Christian Linaban
+- John Miles Varca
+"""
+
 from typing import Any, Dict, List
 from rich.console import Console
-from stats import calculate_percentile
+from app.analytics.stats import calculate_percentile
 
 def find_outliers(students: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     Q1 = calculate_percentile(students, 25)
     Q3 = calculate_percentile(students, 75)
-
+    if Q1 is None or Q3 is None:
+        return []
     IQR = Q3 - Q1
-
     lower_fence = Q1 - (1.5 * IQR)
     upper_fence = Q3 + (1.5 * IQR)
-
-    outliers = [
+    return [
         s for s in students
-        if s['weighted_grade'] < lower_fence 
-        or s['weighted_grade'] > upper_fence
-        
+        if s.get('weighted_grade') is not None
+        and (s['weighted_grade'] < lower_fence or s['weighted_grade'] > upper_fence)
     ]
-
-    return outliers
     
 
 
@@ -84,8 +87,14 @@ def track_midterm_to_final_improvement(students: List[Dict[str, Any]]) -> Dict[s
     }
 
 def correlate_attendance_and_grades(students: List[Dict[str, Any]], threshold: float = 80.0) -> Dict[str, Any]:
-    low_attendance = [s for s in students if s.get('attendance') is not None and s['attendance'] < threshold]
-    high_attendance = [s for s in students if s.get('attendance') is not None and s['attendance'] >= threshold]
+    low_attendance = [
+        s for s in students
+        if s.get('attendance_percent') is not None and s['attendance_percent'] < threshold
+    ]
+    high_attendance = [
+        s for s in students
+        if s.get('attendance_percent') is not None and s['attendance_percent'] >= threshold
+    ]
     if not low_attendance and not high_attendance:
         return {
             'threshold': threshold,
@@ -135,6 +144,25 @@ def correlate_attendance_and_grades(students: List[Dict[str, Any]], threshold: f
         'insights': insights,
         'suggestions': suggestions,
     }
+
+def get_at_risk_students(students: List[Dict[str, Any]], cutoff: float) -> List[Dict[str, Any]]:
+    """Return students whose weighted_grade is below the given cutoff."""
+    at_risk: List[Dict[str, Any]] = []
+    try:
+        cutoff_value = float(cutoff)
+    except (TypeError, ValueError):
+        return at_risk
+    for student in students:
+        grade = student.get("weighted_grade")
+        if grade is None:
+            continue
+        try:
+            grade_value = float(grade)
+        except (TypeError, ValueError):
+            continue
+        if grade_value < cutoff_value:
+            at_risk.append(student)
+    return at_risk
 
 def compare_sections(sections_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
     average_scores: Dict[str, Dict[str, float]] = {}
@@ -247,8 +275,14 @@ def get_sections_quiz_averages(sections_data: Dict[str, List[Dict[str, Any]]]) -
 
 
 def get_attendance_grade_correlation(students: List[Dict[str, Any]], threshold: float = 80.0) -> Dict[str, Any]:
-    low_attendance = [s for s in students if s.get('attendance') is not None and s['attendance'] < threshold]
-    high_attendance = [s for s in students if s.get('attendance') is not None and s['attendance'] >= threshold]
+    low_attendance = [
+        s for s in students
+        if s.get('attendance_percent') is not None and s['attendance_percent'] < threshold
+    ]
+    high_attendance = [
+        s for s in students
+        if s.get('attendance_percent') is not None and s['attendance_percent'] >= threshold
+    ]
     
     low_avg_grade = 0.0
     high_avg_grade = 0.0

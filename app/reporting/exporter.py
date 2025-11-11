@@ -1,10 +1,12 @@
 # Holds the 'export to CSV' logic
+"""CSV export utilities.
+
+Authors:
+- Daniel Go Micompal
+"""
+
 import csv
 from typing import Any, Dict, List
-
-import csv
-
-students_csv_data = []
 
 def export_to_csv(data: List[Dict[str, Any]], filepath: str):
     if not data:
@@ -18,4 +20,3 @@ def export_to_csv(data: List[Dict[str, Any]], filepath: str):
         writer.writeheader()
         writer.writerows(data)
     print(f"Data exported successfully to {filepath}")
-

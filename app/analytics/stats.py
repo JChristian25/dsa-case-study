@@ -1,6 +1,13 @@
 # Holds avg, median, weighted_grade
+"""Statistics utilities for computing grades, distributions, and percentiles.
+
+Authors:
+- Jeoffrey Isaiah Hernandez
+- John Christian Linaban
+"""
+
 import math
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 def compute_weighted_grades(students: List[Dict[str, Any]], weight: Dict[str, float]) -> List[Dict[str, Any]]:
     # Initializing keys
@@ -61,29 +68,24 @@ def calculate_distribution(students: List[Dict[str, Any]], thresholds: Dict[str,
             grade_eval_counter['-D'] += 1
     return grade_eval_counter
 
-def calculate_percentile(students: List[Dict[str, Any]], percentile: int) -> float:
-    
+def calculate_percentile(students: List[Dict[str, Any]], percentile: int) -> Optional[float]:
     grades = [
-        s['weighted_grade'] for s in students
-        if s.get('weighted_grade') is not None
+        s.get('weighted_grade') for s in students
+        if isinstance(s.get('weighted_grade'), (int, float))
     ]
     if not grades:
         return None
-    
-    sorted_grades = sorted(grades)
-
+    sorted_grades = sorted(float(g) for g in grades)
     N = len(sorted_grades)
-
-    P = n/N * 100
-    n = (P/100) * N
-    index = n - 1
-    index = math.ceil((percentile/100)*N) - 1
-
+    p = max(0, min(100, int(percentile)))
+    if p == 0:
+        return sorted_grades[0]
+    if p == 100:
+        return sorted_grades[-1]
+    index = math.ceil((p / 100) * N) - 1
+    index = max(0, min(index, N - 1))
     return sorted_grades[index]
     
-def apply_grade_curve(students: List[Dict[str, Any]], method: str = "flat", value: float = 0) -> List[Dict[str, Any]]:
-    pass
-
 def _get_grade(student: Dict[str, Any]) -> float:
     """Helper function to get a student's grade, defaulting to 0."""
     return student.get("weighted_grade", 0)

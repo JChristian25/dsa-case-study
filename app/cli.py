@@ -1,3 +1,10 @@
+"""Rich TUI CLI for navigating analytics dashboards and utilities.
+
+Authors:
+- Kirsten Licup
+- John Christian Linaban
+"""
+
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -7,7 +14,9 @@ from rich.text import Text
 from rich.theme import Theme
 from rich.layout import Layout
 from rich.live import Live
+from rich.columns import Columns
 from time import sleep
+import time
 import sys
 import readchar
 import csv
@@ -25,10 +34,14 @@ from app.core import (
 from app.analytics.stats import (
     compute_weighted_grades,
     calculate_distribution,
+    calculate_percentile,
     get_top_n_students,
     get_bottom_n_students,
     get_average_grade,
     apply_grade_curve as stats_apply_curve,
+)
+from app.analytics.numpy_stats import (
+    compute_weighted_grades_numpy,
 )
 from app.analytics.insights import (
     get_quiz_averages,
@@ -36,6 +49,8 @@ from app.analytics.insights import (
     track_midterm_to_final_improvement,
     correlate_attendance_and_grades,
     compare_sections,
+    get_at_risk_students,
+    find_outliers,
 )
 from app.reporting.tables import (
     build_student_table,
@@ -363,8 +378,8 @@ def animated_title() -> None:
     ║     ██║  ██║╚██████╗██║  ██║██████╔╝███████╗██║ ╚═╝ ██║██║    ║
     ║     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝     ╚═╝╚═╝    ║
     ║                                                               ║
-    ║          📊  A C A D E M I C   A N A L Y T I C S  📊          ║
-    ║                         L I T E                               ║
+    ║          📊         A C A D E M I         📊          ║
+    ║                                                               ║
     ║                                                               ║
     ╚═══════════════════════════════════════════════════════════════╝
     """
@@ -517,6 +532,18 @@ def view_overall_ranking(students: List[Dict[str, Any]]) -> None:
     rows = [dict(rank=i + 1, **s) for i, s in enumerate(top_students)]
     paginate_rank_table(rows, base_title=f"Top {n} — Overall", page_size=10)
 
+def view_percentiles(students: List[Dict[str, Any]]) -> None:
+    console.clear()
+    table = Table(title="Percentiles (Overall)")
+    table.add_column("Percentile", justify="center")
+    table.add_column("Weighted Grade", justify="right")
+    for p in [25, 50, 75, 90]:
+        val = calculate_percentile(students, p)
+        display = f"{val:.2f}%" if val is not None else "N/A"
+        table.add_row(f"{p}th", display)
+    status = _status_text_basic(students, None, None)
+    _show_in_layout(table, "Percentiles (Overall)", status_text=status)
+
 def view_curve_preview(students: List[Dict[str, Any]]) -> None:
     console.clear()
     method = prompt_str("Curve method [flat|normalize] (default flat):", "flat")
@@ -585,6 +612,17 @@ def view_attendance_correlation_overall(students: List[Dict[str, Any]]) -> None:
     panel = Panel(Text.from_markup("\n".join(lines)), border_style="cyan")
     status = _status_text_basic(students, None, None)
     _show_in_layout(panel, "Attendance Correlation", status_text=status)
+
+def view_outliers(students: List[Dict[str, Any]]) -> None:
+    console.clear()
+    outliers = find_outliers(students)
+    status = _status_text_basic(students, None, None)
+    if outliers:
+        table = build_student_table(outliers, title="Outliers (IQR Method)")
+        _show_in_layout(table, "Outliers (Overall)", status_text=status)
+    else:
+        panel = Panel(Text.from_markup("[warn]No outliers detected.[/warn]"), border_style="cyan")
+        _show_in_layout(panel, "Outliers (Overall)", status_text=status)
 
 def _select_section(sections: Dict[str, List[Dict[str, Any]]]) -> Optional[str]:
     if not sections:
@@ -1098,6 +1136,8 @@ def course_dashboard(students: List[Dict[str, Any]], sections: Dict[str, List[Di
         "1.f": "Overall Histograms",
         "1.g": "Improvement Insights (Midterm→Final)",
         "1.h": "Attendance-Grade Correlation (Overall)",
+        "1.j": "Percentiles (Overall)",
+        "1.k": "Outliers (Overall)",
         "1.i": "Back"
     }
     while True:
@@ -1121,6 +1161,10 @@ def course_dashboard(students: List[Dict[str, Any]], sections: Dict[str, List[Di
             view_improvement_insights(students)
         elif choice == "1.h":
             view_attendance_correlation_overall(students)
+        elif choice == "1.j":
+            view_percentiles(students)
+        elif choice == "1.k":
+            view_outliers(students)
     return students, sections, config_path
 
 def section_analytics(students: List[Dict[str, Any]], sections: Dict[str, List[Dict[str, Any]]], config_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str]:
@@ -1171,18 +1215,19 @@ def student_reports(students: List[Dict[str, Any]], sections: Dict[str, List[Dic
     options = {
         "3.a": "View 'At-Risk' Student List",
         "3.b": "Export Section Reports to CSV",
-        "3.c": "Look Up Individual Student",
-        "3.d": "Back"
+        "3.c": "Export At-Risk per Section to CSV",
+        "3.d": "Look Up Individual Student",
+        "3.e": "Back"
     }
     while True:
         status = _status_text_basic(students, sections, config_path)
         choice = arrow_menu("Student Reports", options, level=2, status_text=status)
-        if choice == "3.d":
+        if choice == "3.e":
             break
         elif choice == "3.a":
             cfg = load_config(config_path)
             cutoff = cfg["thresholds"]["at_risk_cutoff"]
-            at_risk = [s for s in students if isinstance(s.get("weighted_grade"), (int, float)) and s["weighted_grade"] < float(cutoff)]
+            at_risk = get_at_risk_students(students, float(cutoff))
             paginate_students_table(at_risk, base_title=f"At-Risk Students (cutoff {cutoff})", page_size=10)
         elif choice == "3.b":
             cfg = load_config(config_path)
@@ -1194,6 +1239,25 @@ def student_reports(students: List[Dict[str, Any]], sections: Dict[str, List[Dic
             console.print("[bold green]Section reports exported.[/bold green]")
             input("Press Enter to return...")
         elif choice == "3.c":
+            cfg = load_config(config_path)
+            out_dir = cfg["file_paths"]["output_dir"]
+            cutoff = cfg["thresholds"]["at_risk_cutoff"]
+            os.makedirs(out_dir, exist_ok=True)
+            exported = 0
+            for section_name, section_data in sections.items():
+                if not section_data:
+                    continue
+                at_risk = get_at_risk_students(section_data, float(cutoff))
+                if not at_risk:
+                    continue
+                export_to_csv(at_risk, os.path.join(out_dir, f"section_{section_name}_at_risk.csv"))
+                exported += 1
+            if exported > 0:
+                console.print(f"[bold green]Exported at-risk reports for {exported} section(s).[/bold green]")
+            else:
+                console.print("[bold yellow]No at-risk students found in any section. Nothing exported.[/bold yellow]")
+            input("Press Enter to return...")
+        elif choice == "3.d":
             lookup_student(students)
     return students, sections, config_path
 
@@ -1269,7 +1333,7 @@ def run_menu() -> None:
             ║                                               ║
             ║           for using Academic Analytics!       ║
             ║                                               ║
-            ║                  👋 Goodbye! 👋                ║
+            ║                  👋 Goodbye! 👋               ║
             ║                                               ║
             ╚═══════════════════════════════════════════════╝
             """
@@ -1283,7 +1347,7 @@ def run_menu() -> None:
             
             console.clear()
             final_goodbye = Panel(
-                Align.center(Text("✨ Session Ended Successfully ✨\n\nThank you for using Academic Analytics Lite!", style="bold green")),
+                Align.center(Text("✨ Session Ended Successfully ✨\n\nThank you for using Academi!", style="bold green")),
                 border_style="green",
                 padding=(2, 4)
             )

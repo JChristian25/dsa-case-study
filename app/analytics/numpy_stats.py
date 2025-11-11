@@ -1,3 +1,9 @@
+"""NumPy implementation of weighted grades and conversion utilities.
+
+Authors:
+- John Christian Linaban
+"""
+
 import numpy as np
 from typing import Any, Dict, List, Sequence
 
@@ -30,45 +36,42 @@ def compute_weighted_grades_numpy(
 ) -> List[Dict[str, Any]]:
     if not students:
         return []
-    # 1) Convert to matrix (None -> 0.0)
+    # Convert to matrix (None -> 0.0)
     sk = list(score_keys)
     scores = convert_to_numpy(students, sk)
-
-    # 2) Build per-column weight vector matching stats.py semantics
-    #    avg(quizzes) * quizzes_total  => distribute quizzes_total across quiz columns
-    weights = np.zeros(len(sk), dtype=float)
-    quiz_keys = [k for k in sk if k.lower().startswith("quiz")]
-    n_quizzes = max(1, len(quiz_keys))
-    quiz_share = float(weight_cfg.get("quizzes_total", 0.0)) / n_quizzes
-    for idx, key in enumerate(sk):
-        lk = key.lower()
-        if lk == "midterm":
-            weights[idx] = float(weight_cfg.get("midterm", 0.0))
-        elif lk == "final":
-            weights[idx] = float(weight_cfg.get("final", 0.0))
-        elif lk in ("attendance_percent", "attendance", "attendance_percentage"):
-            weights[idx] = float(weight_cfg.get("attendance", 0.0))
-        elif lk.startswith("quiz"):
-            weights[idx] = quiz_share
-        else:
-            weights[idx] = 0.0
-
-    # 3) Compute grades via dot product, rounded to 2 decimals for parity
     if scores.size == 0:
-        grades = np.array([], dtype=float)
-    else:
-        w = weights.reshape(-1)
-        if scores.shape[1] != w.shape[0]:
-            raise ValueError(
-                f"Mismatched shapes: scores has {scores.shape[1]} columns, weights has {w.shape[0]}"
-            )
-        grades = np.round(scores @ w, 2)
+        return [dict(stud, weighted_grade=0.0) for stud in students]
 
-    # Attach to copies to avoid mutating caller's objects
+    # Identify column indices
+    key_to_idx = {k: i for i, k in enumerate(sk)}
+    quiz_idxs = [key_to_idx[k] for k in sk if k.lower().startswith("quiz")]
+    mid_idx = key_to_idx.get("midterm")
+    fin_idx = key_to_idx.get("final")
+    att_idx = key_to_idx.get("attendance_percent")
+
+    # Compute quiz average per row, with prior None->0.0 mapping, then ROUND TO 2 DECIMALS
+    # Using NumPy's native rounding for maximum speed
+    if len(quiz_idxs) > 0:
+        quiz_mat = scores[:, quiz_idxs]
+        quiz_mean = np.mean(quiz_mat, axis=1)
+        # Use NumPy's native rounding for speed
+        quiz_mean = np.round(quiz_mean, 2)
+        quiz_component = quiz_mean * float(weight_cfg.get("quizzes_total", 0.0))
+    else:
+        quiz_component = np.zeros(scores.shape[0], dtype=float)
+
+    # Other weighted components
+    mid_component = (scores[:, mid_idx] if mid_idx is not None else 0.0) * float(weight_cfg.get("midterm", 0.0))
+    fin_component = (scores[:, fin_idx] if fin_idx is not None else 0.0) * float(weight_cfg.get("final", 0.0))
+    att_component = (scores[:, att_idx] if att_idx is not None else 0.0) * float(weight_cfg.get("attendance", 0.0))
+
+    total = quiz_component + mid_component + fin_component + att_component
+    # Use NumPy's native rounding for speed
+    grades = np.round(total, 2)
+
     out: List[Dict[str, Any]] = []
     for stud, g in zip(students, grades):
         s = stud.copy()
-        # g already rounded to 2 decimals above; avoid redundant rounding
         s["weighted_grade"] = float(g)
         out.append(s)
     return out

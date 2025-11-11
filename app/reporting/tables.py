@@ -1,3 +1,9 @@
+"""Rich table renderers for students, distributions, and analytics summaries.
+
+Authors:
+- John Christian Linaban
+"""
+
 from typing import Any, Dict, Iterable, List
 from rich.table import Table
 from rich import box

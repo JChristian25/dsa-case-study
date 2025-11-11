@@ -1,5 +1,12 @@
+"""Console showcase that runs the analytics pipeline and displays results.
+
+Authors:
+- John Christian Linaban
+"""
+
 from typing import Any, Dict, List
 from rich.console import Console
+from rich.table import Table
 
 from app.core import (
     load_config,
@@ -16,11 +23,14 @@ from app.analytics.stats import (
     get_bottom_n_students,
     get_average_grade,
     apply_grade_curve,
+    calculate_percentile,
 )
 from app.analytics.insights import (
     get_quiz_averages,
     get_sections_quiz_averages,
     track_midterm_to_final_improvement,
+    get_at_risk_students,
+    find_outliers,
 )
 from app.reporting.tables import (
     build_student_table,
@@ -48,7 +58,7 @@ def run_showcase(config_path: str = "config.json") -> None:
     students = read_csv_data(config["file_paths"]["input_csv"], config)
 
     # == TRANSFORM: WEIGHTED GRADES ==
-    console.rule("TRANSFORM: WEIGHTED GRADES")
+    console.rule("TRANSFORM")
     students = compute_weighted_grades(students, config["grade_weights"])
     console.print(
         build_student_table(
@@ -88,6 +98,7 @@ def run_showcase(config_path: str = "config.json") -> None:
             console.print(f"Deleted student with ID {to_delete}")
 
     # == SECTION TABLES ==
+    console.rule("ANALYZE")
     console.rule("SECTION TABLES")
     for section_name, studs in sections.items():
         section_grades = compute_weighted_grades(studs, config["grade_weights"])
@@ -180,15 +191,6 @@ def run_showcase(config_path: str = "config.json") -> None:
     students = apply_grade_curve(students, method="normalize", value=100.0)
     console.print(build_curve_table(students[:5], title="Curve Preview (normalize to 100)"))
 
-    # == EXPORTS ==
-    console.rule("EXPORTS")
-    for section_name, section_data in sections.items():
-        if section_data:
-            export_to_csv(
-                section_data,
-                f"{config['file_paths']['output_dir']}section_{section_name}_report.csv",
-            )
-
     # == RANKINGS OVERALL == (to add)
     console.rule("RANKINGS OVERALL (to add)")
     # console.print("[dim]Overall ranking not yet implemented.[/dim]")
@@ -197,13 +199,24 @@ def run_showcase(config_path: str = "config.json") -> None:
     rows = [dict(rank=i + 1, **s) for i, s in enumerate(top_students_overall)]
     console.print(build_rank_table(rows, title=f"Top {N} — Overall"))
 
-    # == PERCENTILES == (to add)
-    console.rule("PERCENTILES (to add)")
-    console.print("[dim]Percentile calculations not yet implemented.[/dim]")
+    # == PERCENTILES ==
+    console.rule("PERCENTILES")
+    pct_table = Table(title="Percentiles (Overall)")
+    pct_table.add_column("Percentile", justify="center")
+    pct_table.add_column("Weighted Grade", justify="right")
+    for p in [25, 50, 75, 90]:
+        val = calculate_percentile(students, p)
+        display = f"{val:.2f}%" if val is not None else "N/A"
+        pct_table.add_row(f"{p}th", display)
+    console.print(pct_table)
 
-    # == OUTLIERS == (to add)
-    console.rule("OUTLIERS (to add)")
-    console.print("[dim]Outlier detection not yet implemented.[/dim]")
+    # == OUTLIERS ==
+    console.rule("OUTLIERS")
+    outliers = find_outliers(students)
+    if outliers:
+        console.print(build_student_table(outliers, title="Outliers (IQR Method)"))
+    else:
+        console.print("[dim]No outliers detected.[/dim]")
 
     # == IMPROVEMENT INSIGHTS == (to add)
     console.rule("IMPROVEMENT INSIGHTS")
@@ -225,9 +238,32 @@ def run_showcase(config_path: str = "config.json") -> None:
             for s in imp["suggestions"]:
                 console.print(f"- {s}")
 
+    # == REPORT ==
+    console.rule("REPORT")
+    # EXPORTS
+    console.rule("EXPORTS")
+    for section_name, section_data in sections.items():
+        if section_data:
+            export_to_csv(
+                section_data,
+                f"{config['file_paths']['output_dir']}section_{section_name}_report.csv",
+            )
+
     # == AT-RISK LIST/EXPORT == (to add)
-    console.rule("AT-RISK LIST/EXPORT (to add)")
-    console.print("[dim]At-risk list and export not yet implemented.[/dim]")
+    console.rule("AT-RISK LIST/EXPORT")
+    cutoff = config["thresholds"]["at_risk_cutoff"]
+    at_risk = get_at_risk_students(students, float(cutoff))
+    console.print(
+        build_student_table(
+            at_risk,
+            title=f"At-Risk Students (cutoff {cutoff})"
+        )
+    )
+    if at_risk:
+        export_to_csv(
+            at_risk,
+            f"{config['file_paths']['output_dir']}at_risk_report.csv",
+        )
 
     # == PLOTS == (to add)
     console.rule("PLOTS")
